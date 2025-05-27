@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>CRM Clínico</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body, html {
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background: #ffffff;
+        }
+        body {
+            padding-top: 29px; /* Espacio para la barra de título personalizada */
+        }
+        webview {
+            width: 100%;
+            height: calc(100% - 29px); /* Ajustar altura considerando la barra de título */
+            border: none;
+        }
+        .titlebar {
+            height: 30px;
+            -webkit-app-region: drag;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            background: #1e60fa;
+        }
+    </style>
+</head>
+<body>
+    <div class="titlebar"></div>
+    <webview src="http://localhost:5173/" allowpopups></webview>
+</body>
+</html> 
