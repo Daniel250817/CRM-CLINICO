@@ -106,7 +106,25 @@ class CitaController {
           duracion: duracionServicio
         }, { transaction: t });
         
-        return cita;
+        // Obtener la cita con todas sus relaciones
+        const citaConRelaciones = await db.Cita.findByPk(cita.id, {
+          include: [
+            { 
+              model: db.Cliente, 
+              as: 'cliente',
+              include: { model: db.Usuario, as: 'usuario', attributes: ['id', 'nombre', 'email', 'telefono'] }
+            },
+            { 
+              model: db.Dentista, 
+              as: 'dentista',
+              include: { model: db.Usuario, as: 'usuario', attributes: ['id', 'nombre', 'email', 'telefono'] }
+            },
+            { model: db.Servicio, as: 'servicio' }
+          ],
+          transaction: t
+        });
+        
+        return citaConRelaciones;
       });
 
       // Enviar notificación

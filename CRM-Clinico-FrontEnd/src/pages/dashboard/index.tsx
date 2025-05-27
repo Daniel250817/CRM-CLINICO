@@ -194,26 +194,6 @@ const Dashboard = () => {
     }
   };
 
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        setLoading(true);
-        await Promise.all([
-          fetchDashboardData(),
-          cargarCitasHoy(),
-          fetchTasks()
-        ]);
-      } catch (error) {
-        console.error('Error al cargar los datos:', error);
-        setError('Error al cargar los datos del dashboard');
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchData();
-  }, []);
-
   // Cargar citas del día
   const cargarCitasHoy = async () => {
     try {
@@ -240,6 +220,51 @@ const Dashboard = () => {
       setLoadingCitas(false);
     }
   };
+
+  // Cargar próximas citas
+  const cargarProximasCitas = async () => {
+    try {
+      setLoadingCitas(true);
+      const hoy = new Date();
+      const proximoMes = new Date(hoy);
+      proximoMes.setMonth(hoy.getMonth() + 1);
+      
+      const todasLasCitas = await citaService.obtenerCitas();
+      const citasProximas = todasLasCitas.filter(cita => {
+        const fechaCita = new Date(cita.fechaHora);
+        return fechaCita > hoy && fechaCita <= proximoMes && cita.estado !== 'cancelada';
+      }).sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime());
+      
+      setAppointments(citasProximas);
+      setErrorCitas(null);
+    } catch (error) {
+      console.error('Error al cargar las citas:', error);
+      setErrorCitas('No se pudieron cargar las citas');
+    } finally {
+      setLoadingCitas(false);
+    }
+  };
+
+  useEffect(() => {
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        await Promise.all([
+          fetchDashboardData(),
+          cargarCitasHoy(),
+          cargarProximasCitas(),
+          fetchTasks()
+        ]);
+      } catch (error) {
+        console.error('Error al cargar los datos:', error);
+        setError('Error al cargar los datos del dashboard');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, []);
 
   // Preparar datos para los gráficos basados en datos de la API
   const prepareChartData = () => {
@@ -560,7 +585,11 @@ const Dashboard = () => {
                           sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
                         >
                           <TableCell component="th" scope="row">
-                            {cita.dentista.usuario.nombre}
+                            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                              <Typography variant="body1">
+                                {cita.dentista.usuario.nombre}
+                              </Typography>
+                            </Box>
                           </TableCell>
                           <TableCell>
                             {new Date(cita.fechaHora).toLocaleTimeString('es-ES', { 
@@ -587,9 +616,72 @@ const Dashboard = () => {
               </TableContainer>
             </TabPanel>
             <TabPanel value={tabValue} index={1}>
-              <Typography variant="body2" color="text.secondary" align="center">
-                No hay próximas citas para mostrar
-              </Typography>
+              {loadingCitas ? (
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                  <CircularProgress size={24} />
+                </Box>
+              ) : errorCitas ? (
+                <Alert severity="error" sx={{ mb: 2 }}>
+                  {errorCitas}
+                </Alert>
+              ) : appointments.length === 0 ? (
+                <Typography variant="body2" color="text.secondary" align="center">
+                  No hay próximas citas para mostrar
+                </Typography>
+              ) : (
+                <TableContainer>
+                  <Table sx={{ minWidth: 650 }}>
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Paciente</TableCell>
+                        <TableCell>Fecha</TableCell>
+                        <TableCell>Hora</TableCell>
+                        <TableCell>Servicio</TableCell>
+                        <TableCell>Dentista</TableCell>
+                        <TableCell>Estado</TableCell>
+                        <TableCell align="right">Acciones</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {appointments.map((cita) => (
+                        <TableRow
+                          key={cita.id}
+                          sx={{ '&:last-child td, &:last-child th': { border: 0 } }}
+                        >
+                          <TableCell>
+                            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+                              <Typography variant="body1">
+                                {cita.cliente?.usuario.nombre}
+                              </Typography>
+                            </Box>
+                          </TableCell>
+                          <TableCell>
+                            {new Date(cita.fechaHora).toLocaleDateString('es-ES')}
+                          </TableCell>
+                          <TableCell>
+                            {new Date(cita.fechaHora).toLocaleTimeString('es-ES', { 
+                              hour: '2-digit', 
+                              minute: '2-digit'
+                            })}
+                          </TableCell>
+                          <TableCell>{cita.servicio.nombre}</TableCell>
+                          <TableCell>{cita.dentista.usuario.nombre}</TableCell>
+                          <TableCell>
+                            <Chip 
+                              label={traducirEstado(cita.estado)}
+                              color={getChipColor(cita.estado)}
+                              size="small"
+                            />
+                          </TableCell>
+                          <TableCell align="right">
+                            <Button size="small" variant="outlined">Ver</Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              )}
             </TabPanel>
           </Paper>
 
@@ -658,17 +750,21 @@ const Dashboard = () => {
                             {task.prioridad === 'alta' ? '!' : '•'}
                           </Avatar>
                         </ListItemAvatar>
-                        <ListItemText
-                          primary={task.titulo}
-                          secondary={
-                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                              <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, fontSize: 16 }} color="action" />
-                              <Typography variant="caption" color="text.secondary">
-                                {new Date(task.fechaLimite).toLocaleDateString('es-ES')}
-                              </Typography>
-                            </Box>
-                          }
-                        />
+                        <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                          <Typography variant="body1">
+                            {task.titulo}
+                          </Typography>
+                          <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                            <AccessTimeIcon 
+                              fontSize="small" 
+                              sx={{ mr: 0.5, fontSize: 16 }} 
+                              color="action" 
+                            />
+                            <Typography variant="body2" color="text.secondary" component="span">
+                              {new Date(task.fechaLimite).toLocaleDateString('es-ES')}
+                            </Typography>
+                          </Box>
+                        </Box>
                       </ListItem>
                       <Divider component="li" />
                     </Box>
@@ -709,22 +805,20 @@ const Dashboard = () => {
                           <CalendarTodayIcon />
                         </Avatar>
                       </ListItemAvatar>
-                      <ListItemText
-                        primary={appointment.cliente?.usuario.nombre}
-                        secondary={
-                          <Box>
-                            <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
-                              <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, fontSize: 16 }} color="action" />
-                              <Typography variant="caption" color="text.secondary">
-                                {new Date(appointment.fechaHora).toLocaleTimeString('es-ES', { 
-                                  hour: '2-digit', 
-                                  minute: '2-digit'
-                                })} - {appointment.servicio?.nombre}
-                              </Typography>
-                            </Box>
-                          </Box>
-                        }
-                      />
+                      <Box sx={{ display: 'flex', flexDirection: 'column', flex: 1 }}>
+                        <Typography variant="body1">
+                          {appointment.cliente?.usuario.nombre}
+                        </Typography>
+                        <Box sx={{ display: 'flex', alignItems: 'center', mt: 0.5 }}>
+                          <AccessTimeIcon fontSize="small" sx={{ mr: 0.5, fontSize: 16 }} color="action" />
+                          <Typography variant="body2" color="text.secondary" component="span">
+                            {new Date(appointment.fechaHora).toLocaleTimeString('es-ES', { 
+                              hour: '2-digit', 
+                              minute: '2-digit'
+                            })} - {appointment.servicio?.nombre}
+                          </Typography>
+                        </Box>
+                      </Box>
                       <Chip 
                         label={appointment.estado.charAt(0).toUpperCase() + appointment.estado.slice(1)} 
                         size="small"

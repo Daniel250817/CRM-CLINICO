@@ -40,6 +40,15 @@
   --fc-neutral-bg-color: #fff;
 }
 
+/* Modo oscuro */
+[data-theme='dark'] .fc {
+  --fc-border-color: #374151;
+  --fc-today-bg-color: rgba(59, 130, 246, 0.1);
+  --fc-neutral-bg-color: #1F2937;
+  --fc-page-bg-color: #111827;
+  color: #F9FAFB;
+}
+
 /* Cabecera de días */
 .fc th {
   padding: 12px 0;
@@ -50,9 +59,20 @@
   background-color: #f9fafb;
 }
 
+/* Modo oscuro - cabecera de días */
+[data-theme='dark'] .fc th {
+  color: #D1D5DB;
+  background-color: #374151;
+}
+
 /* Celdas del calendario */
 .fc td {
   border-color: var(--fc-border-color);
+}
+
+/* Modo oscuro - celdas del calendario */
+[data-theme='dark'] .fc td {
+  background-color: var(--fc-neutral-bg-color);
 }
 
 /* Eventos */
@@ -82,10 +102,24 @@
   transition: all 0.2s ease;
 }
 
+/* Modo oscuro - botones de navegación */
+[data-theme='dark'] .fc .fc-button-primary {
+  background-color: #374151;
+  border-color: #4B5563;
+  color: #F9FAFB;
+}
+
 .fc .fc-button-primary:hover {
   background-color: #f9fafb;
   border-color: #d1d5db;
   color: #111827;
+}
+
+/* Modo oscuro - hover en botones */
+[data-theme='dark'] .fc .fc-button-primary:hover {
+  background-color: #4B5563;
+  border-color: #6B7280;
+  color: #F9FAFB;
 }
 
 .fc .fc-button-primary:not(:disabled).fc-button-active,
@@ -108,6 +142,11 @@
   color: #374151;
 }
 
+/* Modo oscuro - números de día */
+[data-theme='dark'] .fc .fc-daygrid-day-number {
+  color: #D1D5DB;
+}
+
 /* Vista de tiempo */
 .fc .fc-timegrid-slot {
   height: 3rem;
@@ -116,6 +155,11 @@
 .fc .fc-timegrid-slot-label {
   font-size: 0.75rem;
   color: #6b7280;
+}
+
+/* Modo oscuro - etiquetas de tiempo */
+[data-theme='dark'] .fc .fc-timegrid-slot-label {
+  color: #9CA3AF;
 }
 
 /* Estados de eventos */
@@ -143,4 +187,9 @@
 /* Hover en celdas */
 .fc td:hover {
   background-color: #f8fafc;
+}
+
+/* Modo oscuro - hover en celdas */
+[data-theme='dark'] .fc td:hover {
+  background-color: #2D3748;
 } 

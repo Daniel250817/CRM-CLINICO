@@ -1,7 +1,6 @@
-import React, { createContext, useContext, useState, useMemo } from 'react';
+import React, { createContext, useContext, useState, useEffect, useMemo } from 'react';
 import type { ReactNode } from 'react';
-import { ThemeProvider as MUIThemeProvider, createTheme } from '@mui/material/styles';
-import CssBaseline from '@mui/material/CssBaseline';
+import { ThemeProvider as MUIThemeProvider, createTheme, CssBaseline } from '@mui/material';
 import { baseTheme } from '../theme/baseTheme';
 import { darkThemeOptions } from '../theme/darkTheme';
 
@@ -9,22 +8,19 @@ import { darkThemeOptions } from '../theme/darkTheme';
 type ThemeMode = 'light' | 'dark';
 
 // Define the theme context type
-interface ThemeContextProps {
+interface ThemeContextType {
   mode: ThemeMode;
   toggleThemeMode: () => void;
 }
 
 // Create the theme context
-const ThemeContext = createContext<ThemeContextProps | undefined>(undefined);
+const ThemeContext = createContext<ThemeContextType>({
+  mode: 'light',
+  toggleThemeMode: () => {},
+});
 
 // Create a hook to use the theme context
-export const useThemeContext = (): ThemeContextProps => {
-  const context = useContext(ThemeContext);
-  if (!context) {
-    throw new Error('useThemeContext must be used within a ThemeProvider');
-  }
-  return context;
-};
+export const useThemeContext = () => useContext(ThemeContext);
 
 // Define the ThemeProvider props
 interface ThemeProviderProps {
@@ -33,7 +29,24 @@ interface ThemeProviderProps {
 
 // Create a ThemeProvider component
 export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
-  const [mode, setMode] = useState<ThemeMode>('light');
+  // Obtener el tema guardado en localStorage o usar el tema del sistema
+  const storedTheme = localStorage.getItem('themeMode') as ThemeMode | null;
+  const [mode, setMode] = useState<ThemeMode>(storedTheme || 'light');
+
+  // Verificar preferencia del sistema si no hay tema guardado
+  useEffect(() => {
+    if (!storedTheme) {
+      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setMode(prefersDarkMode ? 'dark' : 'light');
+    }
+  }, [storedTheme]);
+
+  // Guardar el tema en localStorage cuando cambie
+  useEffect(() => {
+    localStorage.setItem('themeMode', mode);
+    // Actualizar el atributo data-theme en el elemento raíz
+    document.documentElement.setAttribute('data-theme', mode);
+  }, [mode]);
 
   // Toggle between light and dark mode
   const toggleThemeMode = () => {

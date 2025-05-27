@@ -21,7 +21,8 @@ import {
   Avatar,
   CircularProgress,
   Alert,
-  Chip
+  Chip,
+  ListItemText
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -51,6 +52,8 @@ import { dentistaService, type Dentista } from '../../services/dentistaService';
 import { citaService, type Cita } from '../../services/citaService';
 import { clienteService, type Cliente } from '../../services/clienteService';
 import { useNavigate } from 'react-router-dom';
+import { useNotification } from '../../contexts/NotificationContext';
+import { servicioService, type Servicio } from '../../services/servicioService';
 
 // Tipos de datos
 interface Appointment {
@@ -98,9 +101,9 @@ interface CitaResponse {
 }
 
 interface NuevaCitaDTO {
-  clienteId: string;
-  dentistaId: string;
-  servicioId: string;
+  clienteId: number;
+  dentistaId: number;
+  servicioId: number;
   fechaHora: string;
   duracion: number;
   notas: string;
@@ -113,9 +116,10 @@ interface Patient {
 }
 
 interface Service {
-  id: string;
-  name: string;
-  duration: number;
+  id: number;
+  nombre: string;
+  duracion: number;
+  precio: number;
 }
 
 interface PatientActions {
@@ -126,6 +130,7 @@ interface PatientActions {
 }
 
 const AppointmentCalendar = () => {
+  const { addNotification } = useNotification();
   const [view, setView] = useState<'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'>('timeGridWeek');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [openNewAppointment, setOpenNewAppointment] = useState(false);
@@ -150,54 +155,13 @@ const AppointmentCalendar = () => {
     duration: 30,
     notes: '',
   });
+  const [services, setServices] = useState<Servicio[]>([]);
+  const [loadingServices, setLoadingServices] = useState(false);
+  const [errorServices, setErrorServices] = useState<string | null>(null);
 
   // Referencia al calendario
   const calendarRef = useRef<FullCalendar>(null);
-
   const navigate = useNavigate();
-
-  // Datos de ejemplo
-  const appointments: Appointment[] = [
-    {
-      id: '1',
-      title: 'Limpieza Dental - Juan Pérez',
-      start: '2025-05-22T10:00:00',
-      end: '2025-05-22T10:30:00',
-      patient: 'Juan Pérez',
-      dentist: 'Dr. García',
-      service: 'Limpieza Dental',
-      status: 'confirmed',
-    },
-    {
-      id: '2',
-      title: 'Extracción - Ana María',
-      start: '2025-05-22T11:00:00',
-      end: '2025-05-22T12:00:00',
-      patient: 'Ana María',
-      dentist: 'Dr. García',
-      service: 'Extracción',
-      status: 'pending',
-    },
-    {
-      id: '3',
-      title: 'Revisión - Carlos López',
-      start: '2025-05-23T09:00:00',
-      end: '2025-05-23T09:30:00',
-      patient: 'Carlos López',
-      dentist: 'Dra. Rodríguez',
-      service: 'Revisión',
-      status: 'confirmed',
-    },
-  ];
-
-  // Simulación de datos para los formularios
-  const services = [
-    { id: '1', name: 'Limpieza Dental', duration: 30 },
-    { id: '2', name: 'Extracción', duration: 60 },
-    { id: '3', name: 'Revisión', duration: 30 },
-    { id: '4', name: 'Ortodoncia', duration: 45 },
-    { id: '5', name: 'Blanqueamiento', duration: 60 },
-  ];
 
   // Cargar pacientes
   useEffect(() => {
@@ -303,6 +267,25 @@ const AppointmentCalendar = () => {
     cargarCitasCalendario();
   }, []);
 
+  // Cargar servicios
+  useEffect(() => {
+    const cargarServicios = async () => {
+      try {
+        setLoadingServices(true);
+        const serviciosData = await servicioService.obtenerServicios({ activo: true });
+        setServices(serviciosData);
+        setErrorServices(null);
+      } catch (error) {
+        console.error('Error al cargar servicios:', error);
+        setErrorServices('No se pudieron cargar los servicios');
+      } finally {
+        setLoadingServices(false);
+      }
+    };
+
+    cargarServicios();
+  }, []);
+
   // Evento cuando se selecciona una fecha en el calendario
   const handleDateSelect = (selectInfo: any) => {
     setSelectedDate(dayjs(selectInfo.start));
@@ -376,33 +359,145 @@ const AppointmentCalendar = () => {
     }
   };
 
+  // Verificar disponibilidad del dentista
+  const verificarDisponibilidad = async (dentistaId: number, fecha: string, duracion: number) => {
+    try {
+      console.log('Verificando disponibilidad para:', {
+        dentistaId,
+        fecha,
+        duracion
+      });
+
+      const disponibilidad = await dentistaService.obtenerDisponibilidad(dentistaId.toString(), {
+        params: { fecha }
+      });
+
+      console.log('Disponibilidad recibida:', disponibilidad);
+
+      // Si no hay slots disponibles, retornar false
+      if (!disponibilidad.slotsDisponibles || disponibilidad.slotsDisponibles.length === 0) {
+        console.log('No hay slots disponibles para esta fecha');
+        return false;
+      }
+
+      // Convertir la fecha de la cita a objeto Date
+      const fechaCita = new Date(fecha);
+      const finCita = new Date(fechaCita.getTime() + duracion * 60000);
+
+      console.log('Buscando slot para:', {
+        fechaCita: fechaCita.toISOString(),
+        finCita: finCita.toISOString()
+      });
+
+      // Verificar si el horario está dentro de los slots disponibles
+      const slotDisponible = disponibilidad.slotsDisponibles.some(slot => {
+        const inicioSlot = new Date(slot.inicio);
+        const finSlot = new Date(slot.fin);
+
+        const disponible = fechaCita >= inicioSlot && finCita <= finSlot;
+        
+        if (disponible) {
+          console.log('Slot encontrado:', {
+            inicio: inicioSlot.toISOString(),
+            fin: finSlot.toISOString()
+          });
+        }
+
+        return disponible;
+      });
+
+      if (!slotDisponible) {
+        console.log('No se encontró un slot disponible que coincida con el horario solicitado');
+      }
+
+      return slotDisponible;
+    } catch (error) {
+      console.error('Error al verificar disponibilidad:', error);
+      if (error instanceof Error) {
+        throw new Error(`No se pudo verificar la disponibilidad del dentista: ${error.message}`);
+      } else {
+        throw new Error('No se pudo verificar la disponibilidad del dentista');
+      }
+    }
+  };
+
   // Guardar una nueva cita
   const handleSaveNewAppointment = async () => {
     try {
+      // Validar campos requeridos
       if (!newAppointmentData.patient || !newAppointmentData.dentist || 
           !newAppointmentData.service || !newAppointmentData.dateTime) {
-        throw new Error('Por favor complete todos los campos requeridos');
+        addNotification('Por favor complete todos los campos requeridos', 'error');
+        return;
+      }
+
+      // Validar que la fecha no sea en el pasado
+      if (newAppointmentData.dateTime.isBefore(dayjs(), 'minute')) {
+        addNotification('No se pueden crear citas en fechas pasadas', 'error');
+        return;
+      }
+
+      // Validar duración mínima
+      if (newAppointmentData.duration < 15) {
+        addNotification('La duración mínima de una cita debe ser 15 minutos', 'error');
+        return;
+      }
+
+      // Validar que el paciente exista en la lista de pacientes
+      const pacienteSeleccionado = patients.find(p => p.id === newAppointmentData.patient);
+      if (!pacienteSeleccionado) {
+        console.error('Datos del paciente:', {
+          selectedId: newAppointmentData.patient,
+          availablePatients: patients.map(p => ({ id: p.id, nombre: p.usuario.nombre }))
+        });
+        addNotification('El paciente seleccionado no es válido', 'error');
+        return;
+      }
+
+      // Verificar disponibilidad antes de crear la cita
+      const fechaHora = newAppointmentData.dateTime.format('YYYY-MM-DDTHH:mm:ss');
+      const disponible = await verificarDisponibilidad(
+        Number(newAppointmentData.dentist),
+        fechaHora,
+        newAppointmentData.duration
+      );
+
+      if (!disponible) {
+        addNotification('El dentista no está disponible en ese horario', 'error');
+        return;
       }
 
       const nuevaCita: NuevaCitaDTO = {
-        clienteId: newAppointmentData.patient,
-        dentistaId: newAppointmentData.dentist,
-        servicioId: newAppointmentData.service,
-        fechaHora: newAppointmentData.dateTime.toISOString(),
-        duracion: newAppointmentData.duration,
-        notas: newAppointmentData.notes,
-        estado: 'pendiente'
+        clienteId: Number(pacienteSeleccionado.id),
+        dentistaId: Number(newAppointmentData.dentist),
+        servicioId: Number(newAppointmentData.service),
+        fechaHora: fechaHora,
+        duracion: Number(newAppointmentData.duration),
+        notas: (newAppointmentData.notes || '').trim(),
+        estado: 'pendiente' as const
       };
+
+      console.log('Datos de la nueva cita:', nuevaCita);
 
       // Guardar la cita en el backend
       const citaCreada = await citaService.crearCita(nuevaCita);
+
+      console.log('Cita creada:', citaCreada);
+
+      // Verificar que tenemos todos los datos necesarios
+      if (!citaCreada?.cliente?.usuario?.nombre || !citaCreada?.dentista?.usuario?.nombre || !citaCreada?.servicio?.nombre) {
+        console.error('Datos incompletos en la respuesta:', citaCreada);
+        throw new Error('La respuesta del servidor no incluye todos los datos necesarios');
+      }
 
       // Actualizar el estado local
       const nuevoEvento = {
         id: citaCreada.id,
         title: `${citaCreada.servicio.nombre} - ${citaCreada.cliente.usuario.nombre}`,
         start: citaCreada.fechaHora,
-        end: new Date(new Date(citaCreada.fechaHora).getTime() + citaCreada.duracion * 60000).toISOString(),
+        end: dayjs(citaCreada.fechaHora)
+          .add(citaCreada.duracion, 'minute')
+          .format('YYYY-MM-DDTHH:mm:ss'),
         extendedProps: {
           status: citaCreada.estado,
           patient: citaCreada.cliente.usuario.nombre,
@@ -422,6 +517,9 @@ const AppointmentCalendar = () => {
       });
       setProximasCitas(nuevasProximasCitas.slice(0, 5));
 
+      // Mostrar mensaje de éxito
+      addNotification('Cita creada exitosamente', 'success');
+
       // Cerrar el modal y limpiar el formulario
       setOpenNewAppointment(false);
       setNewAppointmentData({
@@ -432,9 +530,11 @@ const AppointmentCalendar = () => {
         duration: 30,
         notes: '',
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al crear la cita:', error);
-      // Aquí podrías mostrar un mensaje de error al usuario
+      // Mostrar mensaje de error específico
+      const errorMessage = error.response?.data?.message || error.message || 'Error al crear la cita';
+      addNotification(errorMessage, 'error');
     }
   };
 
@@ -445,7 +545,7 @@ const AppointmentCalendar = () => {
       [field]: value,
       // Si cambia el servicio, actualizamos la duración automáticamente
       ...(field === 'service' && {
-        duration: services.find(s => s.id === value)?.duration || 30
+        duration: services.find(s => s.id === Number(value))?.duracion || 30
       })
     });
   };
@@ -599,11 +699,20 @@ const AppointmentCalendar = () => {
       select
       label="Paciente"
       fullWidth
-      value={newAppointmentData.patient}
-      onChange={(e) => handleNewAppointmentChange('patient', e.target.value)}
+      value={newAppointmentData.patient || ''}
+      onChange={(e) => {
+        const selectedId = e.target.value;
+        console.log('Paciente seleccionado:', {
+          id: selectedId,
+          paciente: patients.find(p => p.id === selectedId)
+        });
+        handleNewAppointmentChange('patient', selectedId);
+      }}
+      error={!newAppointmentData.patient}
+      helperText={!newAppointmentData.patient ? 'Por favor seleccione un paciente' : ''}
     >
       <MenuItem value="" disabled>
-        Seleccionar paciente
+        <em>Seleccionar paciente</em>
       </MenuItem>
       {loadingPatients ? (
         <MenuItem disabled>
@@ -612,7 +721,9 @@ const AppointmentCalendar = () => {
         </MenuItem>
       ) : errorPatients ? (
         <MenuItem disabled>
-          Error al cargar pacientes
+          <Alert severity="error" sx={{ width: '100%' }}>
+            {errorPatients}
+          </Alert>
         </MenuItem>
       ) : patients.length === 0 ? (
         <MenuItem disabled>
@@ -623,19 +734,50 @@ const AppointmentCalendar = () => {
           <MenuItem 
             key={patient.id} 
             value={patient.id}
-            sx={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center'
-            }}
           >
-            <Box>
-              <Typography variant="body1">{patient.name}</Typography>
+            <Box sx={{ display: 'flex', flexDirection: 'column' }}>
+              <Typography variant="body1">
+                {`${patient.usuario?.nombre || 'Sin nombre'} ${patient.usuario?.apellidos || ''}`}
+              </Typography>
               <Typography variant="caption" color="text.secondary">
-                {patient.email} • {patient.phone}
+                {patient.usuario?.email || 'Sin correo'} • {patient.usuario?.telefono || 'Sin teléfono'}
               </Typography>
             </Box>
-            {renderPatientActions(patient)}
+          </MenuItem>
+        ))
+      )}
+    </TextField>
+  );
+
+  // Modificar el selector de servicios en el formulario
+  const renderServiceSelector = () => (
+    <TextField
+      select
+      label="Servicio"
+      fullWidth
+      value={newAppointmentData.service}
+      onChange={(e) => handleNewAppointmentChange('service', e.target.value)}
+    >
+      <MenuItem value="" disabled>
+        Seleccionar servicio
+      </MenuItem>
+      {loadingServices ? (
+        <MenuItem disabled>
+          <CircularProgress size={20} sx={{ mr: 1 }} />
+          Cargando servicios...
+        </MenuItem>
+      ) : errorServices ? (
+        <MenuItem disabled>
+          Error al cargar servicios
+        </MenuItem>
+      ) : services.length === 0 ? (
+        <MenuItem disabled>
+          No hay servicios disponibles
+        </MenuItem>
+      ) : (
+        services.map((service) => (
+          <MenuItem key={service.id} value={service.id}>
+            {service.nombre} ({service.duracion} min)
           </MenuItem>
         ))
       )}
@@ -687,22 +829,7 @@ const AppointmentCalendar = () => {
             )}
           </TextField>
 
-          <TextField
-            select
-            label="Servicio"
-            fullWidth
-            value={newAppointmentData.service}
-            onChange={(e) => handleNewAppointmentChange('service', e.target.value)}
-          >
-            <MenuItem value="" disabled>
-              Seleccionar servicio
-            </MenuItem>
-            {services.map((service) => (
-              <MenuItem key={service.id} value={service.id}>
-                {service.name} ({service.duration} min)
-              </MenuItem>
-            ))}
-          </TextField>
+          {renderServiceSelector()}
 
           <TextField
             label="Notas"

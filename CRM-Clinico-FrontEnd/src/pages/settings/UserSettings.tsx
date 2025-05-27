@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Box,
   Card,
@@ -29,10 +29,12 @@ import { useNotification } from '../../contexts/NotificationContext';
 
 const UserSettings = () => {
   const { mode, toggleThemeMode } = useThemeContext();
-  const { user, settings: userSettings, updateSettings, updateUser } = useAuth();
+  const { user, settings: userSettings, updateSettings, updateUser, updateAvatar } = useAuth();
   const { addNotification } = useNotification();
   const [saving, setSaving] = useState(false);
   const [savedMessage, setSavedMessage] = useState<string | null>(null);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [userData, setUserData] = useState({
     nombre: '',
     email: '',
@@ -153,6 +155,37 @@ const UserSettings = () => {
     }
   };
 
+  const handleAvatarChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file || !user) return;
+
+    // Validar el tipo de archivo
+    if (!file.type.startsWith('image/')) {
+      addNotification('Por favor, selecciona un archivo de imagen válido', 'error');
+      return;
+    }
+
+    // Validar el tamaño del archivo (máximo 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      addNotification('La imagen no debe superar los 5MB', 'error');
+      return;
+    }
+
+    try {
+      setUploadingAvatar(true);
+      await updateAvatar(user.id, file);
+      addNotification('Avatar actualizado exitosamente', 'success');
+    } catch (error) {
+      console.error('Error al actualizar el avatar:', error);
+      addNotification('Error al actualizar el avatar. Por favor, intenta nuevamente.', 'error');
+    } finally {
+      setUploadingAvatar(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   // Mostrar loading mientras no tengamos datos del usuario
   if (!user) {
     return (
@@ -189,11 +222,24 @@ const UserSettings = () => {
           <CardContent>
             <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
               <Avatar
-                src={userSettings.avatar || '/avatar-placeholder.png'}
+                src={user.avatar || '/avatar-placeholder.png'}
                 sx={{ width: 100, height: 100, mb: 2 }}
               />
-              <Button variant="outlined" size="small">
-                Cambiar Imagen
+              <input
+                type="file"
+                accept="image/*"
+                style={{ display: 'none' }}
+                onChange={handleAvatarChange}
+                ref={fileInputRef}
+              />
+              <Button 
+                variant="outlined" 
+                size="small"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={uploadingAvatar}
+                startIcon={uploadingAvatar ? <CircularProgress size={20} /> : null}
+              >
+                {uploadingAvatar ? 'Subiendo...' : 'Cambiar Imagen'}
               </Button>
             </Box>
 
@@ -249,8 +295,8 @@ const UserSettings = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={userSettings.notificationEmail}
-                    onChange={(e) => updateSettings({ ...userSettings, notificationEmail: e.target.checked })}
+                    checked={userSettings?.notificationEmail ?? false}
+                    onChange={(e) => updateSettings({ ...(userSettings || {}), notificationEmail: e.target.checked })}
                     color="primary"
                   />
                 }
@@ -259,8 +305,8 @@ const UserSettings = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={userSettings.notificationApp}
-                    onChange={(e) => updateSettings({ ...userSettings, notificationApp: e.target.checked })}
+                    checked={userSettings?.notificationApp ?? false}
+                    onChange={(e) => updateSettings({ ...(userSettings || {}), notificationApp: e.target.checked })}
                     color="primary"
                   />
                 }
@@ -269,8 +315,8 @@ const UserSettings = () => {
               <FormControlLabel
                 control={
                   <Switch
-                    checked={userSettings.notificationSMS}
-                    onChange={(e) => updateSettings({ ...userSettings, notificationSMS: e.target.checked })}
+                    checked={userSettings?.notificationSMS ?? false}
+                    onChange={(e) => updateSettings({ ...(userSettings || {}), notificationSMS: e.target.checked })}
                     color="primary"
                   />
                 }
@@ -302,12 +348,12 @@ const UserSettings = () => {
                 <FormControlLabel
                   control={
                     <Switch
-                      checked={userSettings.theme === 'dark'}
-                      onChange={(e) => updateSettings({ ...userSettings, theme: e.target.checked ? 'dark' : 'light' })}
+                      checked={userSettings?.theme === 'dark'}
+                      onChange={(e) => updateSettings({ ...(userSettings || {}), theme: e.target.checked ? 'dark' : 'light' })}
                       color="primary"
                     />
                   }
-                  label={userSettings.theme === 'dark' ? "Modo Oscuro" : "Modo Claro"}
+                  label={userSettings?.theme === 'dark' ? "Modo Oscuro" : "Modo Claro"}
                 />
               </Box>
               <Box>
@@ -319,8 +365,8 @@ const UserSettings = () => {
                   <TextField
                     select
                     fullWidth
-                    value={userSettings.language}
-                    onChange={(e) => updateSettings({ ...userSettings, language: e.target.value })}
+                    value={userSettings?.language ?? 'es'}
+                    onChange={(e) => updateSettings({ ...(userSettings || {}), language: e.target.value })}
                     SelectProps={{
                       native: true,
                     }}

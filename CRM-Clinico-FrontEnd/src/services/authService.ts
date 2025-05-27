@@ -271,6 +271,33 @@ const authService = {
         error.response?.status
       );
     }
+  },
+
+  // Actualizar avatar del usuario
+  updateAvatar: async (userId: number, avatarFile: File): Promise<User> => {
+    try {
+      const formData = new FormData();
+      formData.append('avatar', avatarFile);
+
+      const response = await api.post<any>(`/auth/avatar`, formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data'
+        }
+      });
+      
+      if (!response.data || !response.data.data) {
+        throw new Error('Respuesta inválida del servidor');
+      }
+
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error al actualizar el avatar:', error);
+      throw new AuthError(
+        error.response?.data?.message || 'Error al actualizar el avatar',
+        'UPDATE_AVATAR_ERROR',
+        error.response?.status
+      );
+    }
   }
 };
 

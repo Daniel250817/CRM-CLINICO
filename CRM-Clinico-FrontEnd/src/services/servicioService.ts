@@ -5,14 +5,9 @@ export interface Servicio {
   id: number;
   nombre: string;
   descripcion: string;
-  precio: number;
   duracion: number;
-  imagen?: string;
-  categoria?: string;
-  codigoServicio?: string;
+  precio: number;
   activo: boolean;
-  createdAt?: string;
-  updatedAt?: string;
 }
 
 export interface CrearServicioDTO {
@@ -45,18 +40,20 @@ const crearFormData = (datos: Partial<CrearServicioDTO>, imagen?: File | null) =
 };
 
 export const servicioService = {
-  obtenerServicios: async (params?: { 
-    activo?: boolean;
-    categoria?: string;
-  }, config?: AxiosRequestConfig) => {
-    const response = await api.get<{ status: string; data: Servicio[] }>('/servicios', { 
-      params,
-      ...config 
+  // Obtener todos los servicios
+  obtenerServicios: async (params?: { activo?: boolean }, config?: AxiosRequestConfig) => {
+    const response = await api.get<{ status: string; data: Servicio[] }>('/servicios', {
+      ...config,
+      params: {
+        ...config?.params,
+        ...params
+      }
     });
     return response.data.data;
   },
 
-  obtenerServicio: async (id: number, config?: AxiosRequestConfig) => {
+  // Obtener un servicio por ID
+  obtenerServicioPorId: async (id: number, config?: AxiosRequestConfig) => {
     const response = await api.get<{ status: string; data: Servicio }>(`/servicios/${id}`, config);
     return response.data.data;
   },
