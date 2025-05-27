@@ -1,0 +1,146 @@
+/* Estilos globales para scrollbars */
+* {
+  scrollbar-width: thin; /* Para Firefox */
+  scrollbar-color: #bdbdbd #f1f1f1; /* Para Firefox */
+}
+
+/* Para Webkit (Chrome, Safari, Edge, etc) */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #bdbdbd;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #9e9e9e;
+}
+
+/* Para elementos con scroll */
+.scroll-container {
+  scrollbar-gutter: stable;
+  overflow-y: auto;
+}
+
+/* Estilos personalizados para el calendario */
+.fc {
+  --fc-border-color: #e5e7eb;
+  --fc-today-bg-color: #f3f8ff;
+  --fc-event-bg-color: #3b82f6;
+  --fc-event-border-color: #3b82f6;
+  --fc-event-text-color: #fff;
+  --fc-neutral-bg-color: #fff;
+}
+
+/* Cabecera de días */
+.fc th {
+  padding: 12px 0;
+  text-transform: capitalize;
+  font-weight: 600;
+  font-size: 0.875rem;
+  color: #4b5563;
+  background-color: #f9fafb;
+}
+
+/* Celdas del calendario */
+.fc td {
+  border-color: var(--fc-border-color);
+}
+
+/* Eventos */
+.fc-event {
+  border-radius: 6px;
+  padding: 2px 4px;
+  font-size: 0.875rem;
+  border: none;
+  margin: 1px 2px;
+  cursor: pointer;
+  transition: transform 0.2s ease;
+}
+
+.fc-event:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
+/* Botones de navegación */
+.fc .fc-button-primary {
+  background-color: #fff;
+  border-color: #e5e7eb;
+  color: #374151;
+  text-transform: capitalize;
+  font-weight: 500;
+  padding: 6px 12px;
+  transition: all 0.2s ease;
+}
+
+.fc .fc-button-primary:hover {
+  background-color: #f9fafb;
+  border-color: #d1d5db;
+  color: #111827;
+}
+
+.fc .fc-button-primary:not(:disabled).fc-button-active,
+.fc .fc-button-primary:not(:disabled):active {
+  background-color: #3b82f6;
+  border-color: #3b82f6;
+  color: #fff;
+}
+
+/* Estilos para el día actual */
+.fc .fc-day-today {
+  background-color: var(--fc-today-bg-color) !important;
+  font-weight: bold;
+}
+
+/* Números de día */
+.fc .fc-daygrid-day-number {
+  padding: 8px;
+  font-weight: 500;
+  color: #374151;
+}
+
+/* Vista de tiempo */
+.fc .fc-timegrid-slot {
+  height: 3rem;
+}
+
+.fc .fc-timegrid-slot-label {
+  font-size: 0.75rem;
+  color: #6b7280;
+}
+
+/* Estados de eventos */
+.event-confirmed {
+  background-color: #10b981 !important;
+  border-color: #10b981 !important;
+}
+
+.event-pending {
+  background-color: #f59e0b !important;
+  border-color: #f59e0b !important;
+}
+
+.event-completed {
+  background-color: #6366f1 !important;
+  border-color: #6366f1 !important;
+}
+
+.event-cancelled {
+  background-color: #ef4444 !important;
+  border-color: #ef4444 !important;
+  text-decoration: line-through;
+}
+
+/* Hover en celdas */
+.fc td:hover {
+  background-color: #f8fafc;
+} 

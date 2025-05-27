@@ -1,0 +1,117 @@
+Necesito un sistema backend con Node.js y MySQL para una clínica dental que incluya:
+
+Autenticación y Autorización:
+
+Registro/login con JWT
+
+Roles: Admin, Dentista, Cliente
+
+Middleware de verificación de roles
+
+Modelos de Base de Datos (MySQL):
+
+Usuarios (id, nombre, email, password, rol, teléfono)
+
+Clientes (id, user_id, historial_medico, alergias, fecha_registro)
+
+Dentistas (id, user_id, especialidad, horario_trabajo, status)
+
+Citas (id, cliente_id, dentista_id, fecha_hora, servicio, estado, notas)
+
+Servicios (id, nombre, descripción, precio, duración)
+
+Tareas (id, titulo, descripción, asignado_a, fecha_limite, estado)
+
+Notificaciones (id, usuario_id, mensaje, fecha, leida)
+
+Endpoints Esenciales:
+
+### Auth:
+POST /api/auth/register
+POST /api/auth/login
+
+### Usuarios:
+GET /api/users (solo admin)
+GET /api/users/me (perfil actual)
+
+### Clientes:
+POST /api/clientes
+GET /api/clientes/:id/citas
+
+### Dentistas:
+GET /api/dentistas/disponibilidad?fecha=YYYY-MM-DD
+POST /api/dentistas/:id/horario (actualizar horario)
+
+### Citas:
+POST /api/citas (con validación de conflictos)
+GET /api/citas?dentista=X&fecha=YYYY-MM-DD
+PATCH /api/citas/:id/estado
+
+### Tareas:
+POST /api/tareas (con notificaciones)
+GET /api/tareas?asignado_a=ID
+
+### Servicios:
+CRUD completo para servicios
+
+Funcionalidades Especiales:
+
+Sistema de calendario con disponibilidad en tiempo real
+
+Conflict checking para citas
+
+Notificaciones automáticas por email/SMS (usar servicios terceros)
+
+Dashboard estadístico (citas pendientes, ingresos, etc.)
+
+Búsqueda avanzada con filtros compuestos
+
+Subida de archivos (historiales médicos, radiografías)
+
+Sistema de recordatorios automáticos
+
+Requerimientos Técnicos:
+
+Usar Express.js y Sequelize/TypeORM
+
+Migraciones para la estructura de BD
+
+Validación de datos con Joi/Zod
+
+Docker-compose para entorno local
+
+Testing con Jest (70%+ coverage)
+
+Documentación Swagger/OpenAPI
+
+Configuración para despliegue en AWS/Heroku
+
+Rate limiting y seguridad OWASP
+
+Flujos de Trabajo:
+
+Cuando se agenda cita → actualizar calendario y enviar confirmación
+
+Cambio de estado de cita → notificar a cliente/dentista
+
+Asignación de tareas → notificación push/email
+
+Sistema de seguimiento de pacientes recurrentes
+
+Incluye:
+
+Esquema completo de la base de datos en SQL
+
+Relaciones y constraints adecuadas
+
+Seeders para datos de prueba
+
+Ejemplos de consultas complejas (JOINs, subqueries)
+
+Manejo de transacciones para operaciones críticas
+
+Optimización de queries con índices
+
+Sistema de logging centralizado
+
+Manejo de errores estructurado

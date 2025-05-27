@@ -1,0 +1,67 @@
+version: '3.8'
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: crm-clinico-app
+    restart: always
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=development
+      - PORT=3000
+      - DB_HOST=db
+      - DB_USER=clinico_user
+      - DB_PASSWORD=clinico_password
+      - DB_NAME=clinicodb
+      - JWT_SECRET=your_jwt_secret_for_development
+      - JWT_EXPIRES_IN=1d
+    volumes:
+      - .:/app
+      - /app/node_modules
+    depends_on:
+      - db
+    command: npm run dev
+    networks:
+      - clinico-network
+  
+  db:
+    image: mysql:8.0
+    container_name: crm-clinico-db
+    restart: always
+    ports:
+      - "3306:3306"
+    environment:
+      - MYSQL_ROOT_PASSWORD=root_password
+      - MYSQL_DATABASE=clinicodb
+      - MYSQL_USER=clinico_user
+      - MYSQL_PASSWORD=clinico_password
+    volumes:
+      - mysql-data:/var/lib/mysql
+      # Mount initialization script
+      - ./db_schema.sql:/docker-entrypoint-initdb.d/db_schema.sql
+    networks:
+      - clinico-network
+  
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: crm-clinico-phpmyadmin
+    restart: always
+    ports:
+      - "8080:80"
+    environment:
+      - PMA_HOST=db
+      - MYSQL_ROOT_PASSWORD=root_password
+    depends_on:
+      - db
+    networks:
+      - clinico-network
+
+volumes:
+  mysql-data:
+
+networks:
+  clinico-network:
+    driver: bridge

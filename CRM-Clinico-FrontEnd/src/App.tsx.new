@@ -1,0 +1,100 @@
+import { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { CssBaseline } from '@mui/material';
+import { LocalizationProvider } from '@mui/x-date-pickers';
+import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
+import './App.css';
+
+// Contexts
+import { ThemeProvider } from './contexts/ThemeContext';
+import { NotificationProvider } from './contexts/NotificationContext';
+
+// Components
+import NotificationSystem from './components/common/NotificationSystem';
+import MainLayout from './components/layout/MainLayout';
+
+// Auth Pages
+import Login from './pages/auth/Login';
+
+// App Pages
+import Dashboard from './pages/dashboard/index';
+import AppointmentsCalendar from './components/appointments/AppointmentCalendar';
+import PatientProfile from './pages/patients/PatientProfile';
+import UserSettings from './pages/settings/UserSettings';
+
+function App() {
+  const [isAuthenticated, setIsAuthenticated] = useState(true); // Por defecto true para desarrollo
+
+  const handleLogin = () => {
+    setIsAuthenticated(true);
+  };
+
+  const handleLogout = () => {
+    setIsAuthenticated(false);
+  };
+
+  return (
+    <ThemeProvider>
+      <NotificationProvider>
+        <LocalizationProvider dateAdapter={AdapterDayjs}>
+          <CssBaseline />
+          <Router>
+            <NotificationSystem />
+            <Routes>
+              <Route 
+                path="/login" 
+                element={
+                  isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login onLogin={handleLogin} />
+                } 
+              />
+              
+              {/* Protected Routes */}
+              {isAuthenticated ? (
+                <>
+                  <Route
+                    path="/dashboard"
+                    element={
+                      <MainLayout onLogout={handleLogout}>
+                        <Dashboard />
+                      </MainLayout>
+                    }
+                  />
+                  <Route
+                    path="/appointments"
+                    element={
+                      <MainLayout onLogout={handleLogout}>
+                        <AppointmentsCalendar />
+                      </MainLayout>
+                    }
+                  />
+                  <Route
+                    path="/patients/:id"
+                    element={
+                      <MainLayout onLogout={handleLogout}>
+                        <PatientProfile />
+                      </MainLayout>
+                    }
+                  />
+                  <Route
+                    path="/settings"
+                    element={
+                      <MainLayout onLogout={handleLogout}>
+                        <UserSettings />
+                      </MainLayout>
+                    }
+                  />
+                  <Route path="/" element={<Navigate to="/dashboard" replace />} />
+                  <Route path="*" element={<Navigate to="/dashboard" replace />} />
+                </>
+              ) : (
+                <Route path="*" element={<Navigate to="/login" replace />} />
+              )}
+            </Routes>
+          </Router>
+        </LocalizationProvider>
+      </NotificationProvider>
+    </ThemeProvider>
+  );
+}
+
+export default App;

@@ -1,0 +1,63 @@
+import React, { createContext, useContext, useState, useEffect } from 'react';
+import { ThemeProvider as MuiThemeProvider } from '@mui/material';
+import { createTheme } from '@mui/material/styles';
+import { deepmerge } from '@mui/utils';
+import { baseTheme } from '../theme/baseTheme';
+import { darkThemeOptions } from '../theme/darkTheme';
+
+type ThemeMode = 'light' | 'dark';
+
+interface ThemeContextType {
+  mode: ThemeMode;
+  toggleThemeMode: () => void;
+}
+
+const ThemeContext = createContext<ThemeContextType>({
+  mode: 'light',
+  toggleThemeMode: () => {},
+});
+
+export const useThemeContext = () => useContext(ThemeContext);
+
+interface ThemeProviderProps {
+  children: React.ReactNode;
+}
+
+export const ThemeProvider: React.FC<ThemeProviderProps> = ({ children }) => {
+  // Check if user has previously set theme preference in localStorage
+  const storedTheme = localStorage.getItem('themeMode') as ThemeMode | null;
+  const [mode, setMode] = useState<ThemeMode>(storedTheme || 'light');
+
+  // Check if user has a system preference for dark mode
+  useEffect(() => {
+    if (!storedTheme) {
+      const prefersDarkMode = window.matchMedia('(prefers-color-scheme: dark)').matches;
+      setMode(prefersDarkMode ? 'dark' : 'light');
+    }
+  }, [storedTheme]);
+
+  // Store theme preference in localStorage when it changes
+  useEffect(() => {
+    localStorage.setItem('themeMode', mode);
+  }, [mode]);
+
+  // Toggle between light and dark mode
+  const toggleThemeMode = () => {
+    setMode((prevMode) => (prevMode === 'light' ? 'dark' : 'light'));
+  };
+
+  // Create theme based on current mode
+  const theme = React.useMemo(() => {
+    const currentTheme = mode === 'dark' 
+      ? createTheme(deepmerge(baseTheme, darkThemeOptions))
+      : createTheme(baseTheme);
+    
+    return currentTheme;
+  }, [mode]);
+
+  return (
+    <ThemeContext.Provider value={{ mode, toggleThemeMode }}>
+      <MuiThemeProvider theme={theme}>{children}</MuiThemeProvider>
+    </ThemeContext.Provider>
+  );
+};

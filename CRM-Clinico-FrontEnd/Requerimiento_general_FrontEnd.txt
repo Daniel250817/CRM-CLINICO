@@ -1,0 +1,179 @@
+# Sistema CRM Odontológico Fullstack (React + TypeScript + Node.js)
+
+## 📂 Estructura General
+```
+dental-crm/
+├─ backend/                 # API Node.js + MySQL
+├─ frontend/                # Aplicación React + TypeScript
+├─ docker-compose.yml       # Configuración Docker
+└─ .github/workflows/       # CI/CD
+```
+
+## ⚙️ Backend (Node.js + TypeScript)
+
+### Tecnologías Principales
+- Express.js + TypeORM + MySQL
+- JWT + Bcrypt (Autenticación) Ya está en backend
+- Zod (Validación)
+- Swagger (Documentación)
+- Docker + PostgreSQL (Alternativa)
+
+### Modelos Esenciales
+```typescript
+// Ejemplo en TypeORM
+@Entity()
+export class Appointment extends BaseEntity {
+  @PrimaryGeneratedColumn()
+  id: number;
+
+  @ManyToOne(() => User, user => user.patientAppointments)
+  patient: User;
+
+  @ManyToOne(() => User, user => user.dentistAppointments)
+  dentist: User;
+
+  @Column({ type: 'datetime' })
+  datetime: Date;
+
+  @Column({
+    type: 'enum',
+    enum: AppointmentStatus,
+    default: AppointmentStatus.PENDING
+  })
+  status: AppointmentStatus;
+}
+```
+
+### Endpoints Críticos
+| Método | Ruta | Función |
+|--------|------|---------|
+| POST | `/api/auth/login` | Login con JWT y roles |
+| POST | `/api/appointments` | Crear cita con validación |
+| GET | `/api/dentists/:id/calendar` | Obtener disponibilidad en tiempo real |
+| PATCH | `/api/patients/:id/medical` | Actualizar historial médico |
+
+### Características Clave
+- Sistema de citas con conflict checking
+- Notificaciones automáticas (email/SMS)
+- Dashboard administrativo con métricas
+- Subida segura de archivos médicos
+- API Rate Limiting (100 requests/15min)
+
+## 🖥️ Frontend (React + TypeScript)
+
+### Tecnologías Principales
+- React 18 + Vite + TypeScript
+- Redux Toolkit (Gestión de estado)
+- Material-UI v5 + Emotion (Estilos)
+- React Hook Form + Yup (Formularios)
+- Axios (Conexión API)
+
+### Componentes Clave
+```tsx
+// Ejemplo de componente de calendario
+const DentalCalendar: React.FC<CalendarProps> = ({ events }) => {
+  const { currentUser } = useAuth();
+
+  return (
+    <FullCalendar
+      plugins={[dayGridPlugin, interactionPlugin]}
+      editable={currentUser?.role === 'admin'}
+      events={events}
+      eventDrop={handleEventDrop} // ✅ Conexión con API
+    />
+  );
+};
+```
+
+### Vistas Principales
+
+#### Dashboard
+- Widgets interactivos (citas del día, ingresos)
+- Acceso rápido a funcionalidades clave
+
+#### Gestión de Citas
+- Calendario interactivo con drag & drop
+- Sistema de recordatorios visuales
+- Búsqueda inteligente por paciente/fecha
+
+#### Perfil de Paciente
+- Historial médico digital (PDF/imágenes)
+- Timeline de tratamientos
+- Formulario seguro de actualización de datos
+
+#### Panel Dentista
+- Vista de agenda personalizada
+- Gestión de tareas priorizadas
+- Chat interno con pacientes
+
+### Integración con Backend
+```typescript
+// Ejemplo de servicio API
+export const AppointmentService = {
+  createAppointment: async (data: AppointmentDTO): Promise<Appointment> => {
+    const response = await axios.post<Appointment>(
+      '/api/appointments',
+      data,
+      {
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }
+    );
+    return response.data;
+  },
+  
+  checkDentistAvailability: async (dentistId: number, date: string) => {
+    return axios.get<AvailabilityResponse>(
+      `/api/dentists/${dentistId}/availability?date=${date}`
+    );
+  }
+};
+```
+
+## 🚀 Despliegue y DevOps
+
+### Dockerfile
+```dockerfile
+# Backend Dockerfile
+FROM node:18-alpine
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --only=production
+COPY . .
+CMD ["npm", "run", "start:prod"]
+
+# Frontend Dockerfile
+FROM nginx:alpine
+COPY dist /usr/share/nginx/html
+COPY nginx.conf /etc/nginx/conf.d/default.conf
+```
+
+### Variables de Entorno
+```ini
+# .env.example
+VITE_API_URL=http://localhost:3000/api
+VITE_GOOGLE_MAPS_KEY=your_key
+VITE_SENTRY_DSN=your_dsn
+```
+
+## ✅ Requisitos Técnicos Completos
+
+### Seguridad
+- Validación JWT en todas las rutas
+- CORS configurado estrictamente
+- Sanitización de inputs (XSS protection)
+
+### Testing
+- Backend: Jest + Supertest (90% coverage)
+- Frontend: React Testing Library + Cypress
+
+### Performance
+- Caching de consultas frecuentes (Redis)
+- Lazy loading de rutas en frontend
+- Optimización de imágenes (WebP)
+
+### Extras
+- Dark Mode persistente
+- Internacionalización (i18n) ES/EN
+- WebSockets para notificaciones en tiempo real

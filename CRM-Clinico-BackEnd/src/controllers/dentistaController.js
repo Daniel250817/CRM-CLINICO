@@ -1,0 +1,431 @@
+const db = require('../models');
+const { NotFoundError, ForbiddenError, ValidationError } = require('../utils/errors');
+const logger = require('../utils/logger');
+
+class DentistaController {
+  /**
+   * Obtener perfil de dentista
+   */
+  static async obtenerPerfil(req, res, next) {
+    try {
+      let dentistaId;
+      
+      // Si es el propio dentista quien hace la solicitud
+      if (req.usuario.rol === 'dentista') {
+        const dentista = await db.Dentista.findOne({ 
+          where: { userId: req.usuario.id } 
+        });
+        
+        if (!dentista) {
+          return next(new NotFoundError('No se encontró el perfil de dentista asociado'));
+        }
+        
+        dentistaId = dentista.id;
+      } else {
+        // Si es otro rol quien solicita un dentista específico
+        dentistaId = req.params.id;
+      }
+      
+      const dentista = await db.Dentista.findByPk(dentistaId, {
+        include: {
+          model: db.Usuario,
+          as: 'usuario',
+          attributes: ['id', 'nombre', 'email', 'telefono', 'createdAt']
+        }
+      });
+      
+      if (!dentista) {
+        return next(new NotFoundError(`No existe un dentista con ID: ${dentistaId}`));
+      }
+      
+      res.status(200).json({
+        status: 'success',
+        data: dentista
+      });
+    } catch (error) {
+      logger.error(`Error al obtener perfil de dentista: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Actualizar información de dentista
+   */
+  static async actualizarDentista(req, res, next) {
+    try {
+      let dentistaId;
+      
+      // Si es el propio dentista quien hace la actualización
+      if (req.usuario.rol === 'dentista') {
+        const dentista = await db.Dentista.findOne({ 
+          where: { userId: req.usuario.id } 
+        });
+        
+        if (!dentista) {
+          return next(new NotFoundError('No se encontró el perfil de dentista asociado'));
+        }
+        
+        dentistaId = dentista.id;
+      } else {
+        // Si es admin quien actualiza un dentista específico
+        if (req.usuario.rol !== 'admin') {
+          return next(new ForbiddenError('No tienes permiso para modificar este dentista'));
+        }
+        dentistaId = req.params.id;
+      }
+      
+      const dentista = await db.Dentista.findByPk(dentistaId);
+      
+      if (!dentista) {
+        return next(new NotFoundError(`No existe un dentista con ID: ${dentistaId}`));
+      }
+      
+      // Extraer campos a actualizar
+      const { 
+        especialidad,
+        horarioTrabajo,
+        status,
+        titulo,
+        numeroColegiado,
+        añosExperiencia,
+        biografia,
+        fotoPerfil
+      } = req.body;
+      
+      // Validar formato del horario
+      if (horarioTrabajo) {
+        const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+        
+        // Verificar que todas las keys sean días válidos
+        Object.keys(horarioTrabajo).forEach(dia => {
+          if (!diasSemana.includes(dia)) {
+            return next(new ValidationError(`Día inválido en horario: ${dia}`));
+          }
+          
+          // Verificar que los rangos de hora sean válidos
+          const rangos = horarioTrabajo[dia];
+          if (!Array.isArray(rangos)) {
+            return next(new ValidationError(`El formato de horario para ${dia} debe ser un array`));
+          }
+          
+          rangos.forEach(rango => {
+            if (!rango.inicio || !rango.fin) {
+              return next(new ValidationError(`Cada rango debe tener inicio y fin`));
+            }
+            
+            const inicio = parseFloat(rango.inicio);
+            const fin = parseFloat(rango.fin);
+            
+            if (isNaN(inicio) || isNaN(fin)) {
+              return next(new ValidationError(`Los valores de hora deben ser números`));
+            }
+            
+            if (inicio < 0 || inicio >= 24 || fin <= 0 || fin > 24) {
+              return next(new ValidationError(`Horas fuera de rango`));
+            }
+            
+            if (inicio >= fin) {
+              return next(new ValidationError(`La hora de inicio debe ser menor que la hora de fin`));
+            }
+          });
+        });
+      }
+      
+      // Actualizar campos si se proporcionan
+      if (especialidad !== undefined) dentista.especialidad = especialidad;
+      if (horarioTrabajo !== undefined) dentista.horarioTrabajo = horarioTrabajo;
+      if (status !== undefined && req.usuario.rol === 'admin') dentista.status = status;
+      if (titulo !== undefined) dentista.titulo = titulo;
+      if (numeroColegiado !== undefined) {
+        // Verificar si el número ya está en uso por otro dentista
+        if (numeroColegiado !== dentista.numeroColegiado) {
+          const existeNumero = await db.Dentista.findOne({ 
+            where: { 
+              numeroColegiado,
+              id: { [db.Sequelize.Op.ne]: dentistaId }
+            } 
+          });
+          
+          if (existeNumero) {
+            return next(new ValidationError('El número de colegiado ya está registrado'));
+          }
+        }
+        dentista.numeroColegiado = numeroColegiado;
+      }
+      if (añosExperiencia !== undefined) dentista.añosExperiencia = añosExperiencia;
+      if (biografia !== undefined) dentista.biografia = biografia;
+      if (fotoPerfil !== undefined) dentista.fotoPerfil = fotoPerfil;
+      
+      await dentista.save();
+      
+      res.status(200).json({
+        status: 'success',
+        message: 'Información de dentista actualizada correctamente',
+        data: dentista
+      });
+    } catch (error) {
+      logger.error(`Error al actualizar dentista: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener disponibilidad de un dentista
+   */
+  static async obtenerDisponibilidad(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { fecha } = req.query;
+      
+      if (!fecha) {
+        return next(new ValidationError('Debe proporcionar una fecha'));
+      }
+      
+      const dentista = await db.Dentista.findByPk(id);
+      
+      if (!dentista) {
+        return next(new NotFoundError(`No existe un dentista con ID: ${id}`));
+      }
+      
+      // Verificar que el dentista esté activo
+      if (dentista.status !== 'activo') {
+        return res.status(200).json({
+          status: 'success',
+          message: `El dentista no está disponible actualmente (${dentista.status})`,
+          disponible: false,
+          data: {
+            horarioTrabajo: {},
+            citas: []
+          }
+        });
+      }
+      
+      // Obtener fecha en formato adecuado
+      const fechaConsulta = new Date(fecha);
+      const diaSemana = fechaConsulta.getDay();
+      const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+      const diaTexto = diasSemana[diaSemana];
+      
+      // Verificar si el dentista trabaja ese día
+      let horarioDisponible = [];
+      if (dentista.horarioTrabajo && dentista.horarioTrabajo[diaTexto]) {
+        horarioDisponible = dentista.horarioTrabajo[diaTexto];
+      } else {
+        return res.status(200).json({
+          status: 'success',
+          message: `El dentista no trabaja los ${diaTexto}`,
+          disponible: false,
+          data: {
+            horarioTrabajo: { [diaTexto]: [] },
+            citas: []
+          }
+        });
+      }
+      
+      // Obtener citas del dentista para ese día
+      const fechaInicio = new Date(fecha);
+      fechaInicio.setHours(0, 0, 0, 0);
+      
+      const fechaFin = new Date(fecha);
+      fechaFin.setHours(23, 59, 59, 999);
+      
+      const citas = await db.Cita.findAll({
+        where: {
+          dentistaId: id,
+          fechaHora: {
+            [db.Sequelize.Op.between]: [fechaInicio, fechaFin]
+          },
+          estado: {
+            [db.Sequelize.Op.notIn]: ['cancelada']
+          }
+        },
+        include: [
+          { model: db.Servicio, as: 'servicio' }
+        ],
+        order: [['fechaHora', 'ASC']]
+      });
+      
+      // Transformar citas para proteger datos de clientes
+      const citasFormateadas = citas.map(cita => ({
+        id: cita.id,
+        fechaHora: cita.fechaHora,
+        duracion: cita.duracion,
+        servicio: cita.servicio.nombre,
+        estado: cita.estado
+      }));
+      
+      res.status(200).json({
+        status: 'success',
+        disponible: true,
+        data: {
+          horarioTrabajo: { [diaTexto]: horarioDisponible },
+          citas: citasFormateadas
+        }
+      });
+    } catch (error) {
+      logger.error(`Error al obtener disponibilidad: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener todos los dentistas
+   */
+  static async obtenerTodosLosDentistas(req, res, next) {
+    try {
+      const { status, especialidad } = req.query;
+      
+      const where = {};
+      
+      if (status) {
+        where.status = status;
+      }
+      
+      if (especialidad) {
+        where.especialidad = especialidad;
+      }
+      
+      const dentistas = await db.Dentista.findAll({
+        where,
+        include: {
+          model: db.Usuario,
+          as: 'usuario',
+          attributes: ['id', 'nombre', 'email', 'telefono', 'activo']
+        },
+        order: [[{ model: db.Usuario, as: 'usuario' }, 'nombre', 'ASC']]
+      });
+      
+      res.status(200).json({
+        status: 'success',
+        results: dentistas.length,
+        data: dentistas
+      });
+    } catch (error) {
+      logger.error(`Error al obtener todos los dentistas: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener las especialidades únicas
+   */
+  static async obtenerEspecialidades(req, res, next) {
+    try {
+      const especialidades = await db.Dentista.findAll({
+        attributes: [[db.Sequelize.fn('DISTINCT', db.Sequelize.col('especialidad')), 'especialidad']],
+        where: {
+          especialidad: {
+            [db.Sequelize.Op.not]: null
+          }
+        },
+        raw: true
+      });
+      
+      const listaEspecialidades = especialidades
+        .map(esp => esp.especialidad)
+        .filter(Boolean);
+      
+      res.status(200).json({
+        status: 'success',
+        data: listaEspecialidades
+      });
+    } catch (error) {
+      logger.error(`Error al obtener especialidades: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Crear un nuevo dentista
+   */
+  static async crearDentista(req, res, next) {
+    try {
+      const { 
+        userId,
+        especialidad,
+        horarioTrabajo,
+        status = 'activo',
+        titulo,
+        numeroColegiado,
+        añosExperiencia,
+        biografia
+      } = req.body;
+
+      // Verificar que el usuario existe
+      const usuario = await db.Usuario.findByPk(userId);
+      if (!usuario) {
+        return next(new NotFoundError(`No existe un usuario con ID: ${userId}`));
+      }
+
+      // Verificar que el usuario no sea ya un dentista
+      const dentistaPrevio = await db.Dentista.findOne({ where: { userId } });
+      if (dentistaPrevio) {
+        return next(new ValidationError('Este usuario ya está registrado como dentista'));
+      }
+
+      // Validar formato del horario
+      if (horarioTrabajo) {
+        const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+        
+        // Verificar que todas las keys sean días válidos
+        Object.keys(horarioTrabajo).forEach(dia => {
+          if (!diasSemana.includes(dia)) {
+            return next(new ValidationError(`Día inválido en horario: ${dia}`));
+          }
+          
+          // Verificar que los rangos de hora sean válidos
+          const rangos = horarioTrabajo[dia];
+          if (!Array.isArray(rangos)) {
+            return next(new ValidationError(`El formato de horario para ${dia} debe ser un array`));
+          }
+          
+          rangos.forEach(rango => {
+            if (!rango.inicio || !rango.fin) {
+              return next(new ValidationError(`Cada rango debe tener inicio y fin`));
+            }
+          });
+        });
+      }
+
+      // Verificar número de colegiado único si se proporciona
+      if (numeroColegiado) {
+        const existeNumero = await db.Dentista.findOne({ where: { numeroColegiado } });
+        if (existeNumero) {
+          return next(new ValidationError('El número de colegiado ya está registrado'));
+        }
+      }
+
+      // Crear el dentista
+      const dentista = await db.Dentista.create({
+        userId,
+        especialidad,
+        horarioTrabajo,
+        status,
+        titulo,
+        numeroColegiado,
+        añosExperiencia,
+        biografia
+      });
+
+      // Obtener el dentista con la información del usuario
+      const dentistaConUsuario = await db.Dentista.findByPk(dentista.id, {
+        include: {
+          model: db.Usuario,
+          as: 'usuario',
+          attributes: ['id', 'nombre', 'email', 'telefono']
+        }
+      });
+
+      res.status(201).json({
+        status: 'success',
+        message: 'Dentista creado correctamente',
+        data: dentistaConUsuario
+      });
+    } catch (error) {
+      logger.error(`Error al crear dentista: ${error}`);
+      next(error);
+    }
+  }
+}
+
+module.exports = DentistaController;
