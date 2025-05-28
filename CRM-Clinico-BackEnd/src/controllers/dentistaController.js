@@ -74,7 +74,12 @@ class DentistaController {
         dentistaId = req.params.id;
       }
       
-      const dentista = await db.Dentista.findByPk(dentistaId);
+      const dentista = await db.Dentista.findByPk(dentistaId, {
+        include: [{
+          model: db.Usuario,
+          as: 'usuario'
+        }]
+      });
       
       if (!dentista) {
         return next(new NotFoundError(`No existe un dentista con ID: ${dentistaId}`));
@@ -88,53 +93,47 @@ class DentistaController {
         titulo,
         numeroColegiado,
         añosExperiencia,
-        biografia
+        biografia,
+        usuario
       } = req.body;
       
-      // Validar formato del horario
-      if (horarioTrabajo) {
-        const diasSemana = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
-        
-        // Verificar que todas las keys sean días válidos
-        Object.keys(horarioTrabajo).forEach(dia => {
-          if (!diasSemana.includes(dia)) {
-            return next(new ValidationError(`Día inválido en horario: ${dia}`));
-          }
-          
-          // Verificar que los rangos de hora sean válidos
-          const rangos = horarioTrabajo[dia];
-          if (!Array.isArray(rangos)) {
-            return next(new ValidationError(`El formato de horario para ${dia} debe ser un array`));
-          }
-          
-          rangos.forEach(rango => {
-            if (!rango.inicio || !rango.fin) {
-              return next(new ValidationError(`Cada rango debe tener inicio y fin`));
-            }
-            
-            const inicio = parseFloat(rango.inicio);
-            const fin = parseFloat(rango.fin);
-            
-            if (isNaN(inicio) || isNaN(fin)) {
-              return next(new ValidationError(`Los valores de hora deben ser números`));
-            }
-            
-            if (inicio < 0 || inicio >= 24 || fin <= 0 || fin > 24) {
-              return next(new ValidationError(`Horas fuera de rango`));
-            }
-            
-            if (inicio >= fin) {
-              return next(new ValidationError(`La hora de inicio debe ser menor que la hora de fin`));
+      // Actualizar datos del usuario si se proporcionan
+      if (usuario && dentista.usuario) {
+        const { nombre, apellidos, email, telefono } = usuario;
+
+        // Verificar si el email ya existe (solo si se está cambiando)
+        if (email && email !== dentista.usuario.email) {
+          const existeEmail = await db.Usuario.findOne({
+            where: {
+              email,
+              id: { [db.Sequelize.Op.ne]: dentista.usuario.id }
             }
           });
+
+          if (existeEmail) {
+            return next(new ValidationError('El email ya está registrado por otro usuario'));
+          }
+        }
+
+        // Actualizar datos del usuario
+        await dentista.usuario.update({
+          nombre: nombre || dentista.usuario.nombre,
+          apellidos: apellidos || dentista.usuario.apellidos,
+          email: email || dentista.usuario.email,
+          telefono: telefono || dentista.usuario.telefono
         });
       }
-      
-      // Actualizar campos si están definidos
+
+      // Actualizar campos del dentista
       if (especialidad !== undefined) dentista.especialidad = especialidad;
-      if (horarioTrabajo !== undefined) dentista.horarioTrabajo = horarioTrabajo;
+      if (horarioTrabajo !== undefined) {
+        dentista.horarioTrabajo = typeof horarioTrabajo === 'string' ? 
+          horarioTrabajo : 
+          JSON.stringify(horarioTrabajo);
+      }
       if (status !== undefined) dentista.status = status;
       if (titulo !== undefined) dentista.titulo = titulo;
+      
       if (numeroColegiado !== undefined) {
         // Verificar si el número ya está en uso por otro dentista
         if (numeroColegiado !== dentista.numeroColegiado) {
@@ -155,6 +154,14 @@ class DentistaController {
       if (biografia !== undefined) dentista.biografia = biografia;
       
       await dentista.save();
+      
+      // Recargar el dentista con sus relaciones
+      await dentista.reload({
+        include: [{
+          model: db.Usuario,
+          as: 'usuario'
+        }]
+      });
       
       res.status(200).json({
         status: 'success',

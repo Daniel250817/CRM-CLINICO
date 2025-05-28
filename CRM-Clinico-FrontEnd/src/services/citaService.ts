@@ -11,23 +11,28 @@ export interface Cita {
   id: string;
   fechaHora: string;
   duracion: number;
-  estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada';
+  estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió';
   notas?: string;
   cliente: {
     id: string;
     usuario: {
       nombre: string;
+      email: string;
+      telefono: string;
     }
   };
   dentista: {
     id: string;
     usuario: {
       nombre: string;
+      email: string;
+      telefono: string;
     }
   };
   servicio: {
     id: string;
     nombre: string;
+    duracion: number;
   };
 }
 
@@ -38,14 +43,16 @@ interface CitaDTO {
   fechaHora: string;
   duracion: number;
   notas?: string;
-  estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada';
+  estado?: 'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió';
+}
+
+interface ApiResponse<T> {
+  status: string;
+  data: T;
 }
 
 interface GetCitasParams {
   params?: {
-    dentista?: string;
-    cliente?: string;
-    fecha?: string;
     estado?: string;
     desde?: string;
     hasta?: string;
@@ -55,7 +62,7 @@ interface GetCitasParams {
 const citaService = {
   async obtenerCitas(options: GetCitasParams = {}): Promise<Cita[]> {
     try {
-      const response = await api.get('/citas', options);
+      const response = await api.get<ApiResponse<Cita[]>>('/citas', options);
       return response.data.data;
     } catch (error) {
       console.error('Error al obtener citas:', error);
@@ -65,7 +72,7 @@ const citaService = {
 
   async obtenerCitaPorId(id: string): Promise<Cita> {
     try {
-      const response = await api.get(`/citas/${id}`);
+      const response = await api.get<ApiResponse<Cita>>(`/citas/${id}`);
       return response.data.data;
     } catch (error) {
       console.error('Error al obtener cita:', error);
@@ -75,20 +82,27 @@ const citaService = {
 
   async crearCita(citaData: CitaDTO): Promise<Cita> {
     try {
-      // Asegurarnos de que la fecha esté en UTC
+      // La fecha ya viene en UTC desde el calendario
       const fechaOriginal = citaData.fechaHora;
-      const fechaUTC = dayjs(fechaOriginal).utc().format('YYYY-MM-DDTHH:mm:ss[Z]');
+      
+      // Crear objeto dayjs manteniendo UTC
+      const fechaUTC = dayjs(fechaOriginal);
+      
+      // Obtener la fecha local para logging
+      const fechaLocal = fechaUTC.local();
 
       console.log('Conversión de fecha en servicio:', {
         fechaOriginal,
-        fechaParseada: dayjs(fechaOriginal).format('YYYY-MM-DD HH:mm:ss'),
-        fechaUTC,
-        offset: dayjs().format('Z')
+        fechaParseada: fechaLocal.format('YYYY-MM-DD HH:mm:ss'),
+        fechaUTC: fechaOriginal,
+        offset: dayjs().format('Z'),
+        horaLocal: fechaLocal.format('HH:mm'),
+        horaUTC: fechaUTC.format('HH:mm')
       });
 
-      const response = await api.post('/citas', {
+      const response = await api.post<ApiResponse<Cita>>('/citas', {
         ...citaData,
-        fechaHora: fechaUTC
+        fechaHora: fechaOriginal // Mantener la fecha UTC original
       });
 
       return response.data.data;
@@ -97,13 +111,13 @@ const citaService = {
       if (error.response?.data) {
         console.log('Response data:', error.response.data);
       }
-      throw error; // Propagar el error original para mantener el mensaje del backend
+      throw error;
     }
   },
 
   async actualizarEstadoCita(id: string, estado: string, motivoCancelacion?: string): Promise<Cita> {
     try {
-      const response = await api.patch(`/citas/${id}/estado`, {
+      const response = await api.patch<ApiResponse<Cita>>(`/citas/${id}/estado`, {
         estado,
         motivoCancelacion
       });
@@ -116,7 +130,7 @@ const citaService = {
 
   // Obtener citas de un cliente específico
   obtenerCitasCliente: async (clienteId: string, config?: AxiosRequestConfig) => {
-    const response = await api.get<{ status: string; data: Cita[] }>(`/clientes/${clienteId}/citas`, config);
+    const response = await api.get<ApiResponse<Cita[]>>(`/clientes/${clienteId}/citas`, config);
     return response.data.data;
   },
 
@@ -126,14 +140,11 @@ const citaService = {
     fecha: string,
     config?: AxiosRequestConfig
   ) => {
-    const response = await api.get<{
-      status: string;
-      data: {
-        fecha: string;
-        horarioTrabajo: Array<{ inicio: string; fin: string }>;
-        slotsDisponibles: Array<{ inicio: string; fin: string }>;
-      };
-    }>(`/citas/dentista/${dentistaId}/disponibilidad?fecha=${fecha}`, config);
+    const response = await api.get<ApiResponse<{
+      fecha: string;
+      horarioTrabajo: Array<{ inicio: string; fin: string }>;
+      slotsDisponibles: Array<{ inicio: string; fin: string }>;
+    }>>(`/citas/dentista/${dentistaId}/disponibilidad?fecha=${fecha}`, config);
     return response.data.data;
   },
 
@@ -149,7 +160,7 @@ const citaService = {
       });
 
       // Usar la ruta específica para actualizar fecha y hora
-      const response = await api.patch<{ status: string; data: Cita }>(`/citas/${id}/fecha`, {
+      const response = await api.patch<ApiResponse<Cita>>(`/citas/${id}/fecha`, {
         fechaHora: fechaUTC,
         ...(duracion && { duracion })
       });

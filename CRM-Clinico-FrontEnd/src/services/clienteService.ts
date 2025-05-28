@@ -76,7 +76,7 @@ export interface Cliente {
     nombre: string;
     telefono: string;
     relacion: string;
-  };
+  } | undefined;
   historialMedico?: {
     alergias: string;
     cirugiasPrevias: string;
@@ -220,34 +220,51 @@ const adaptClienteToUI = (cliente: ClienteAPI): Cliente => {
       fechaNacimiento: cliente.usuario?.fechaNacimiento ? new Date(cliente.usuario.fechaNacimiento) : null,
       genero: cliente.usuario?.genero || ''
     },
-    direccion: cliente.direccion,
-    ciudad: cliente.ciudad,
-    codigoPostal: cliente.codigoPostal,
-    ocupacion: cliente.ocupacion,
-    estadoCivil: cliente.estadoCivil,
-    contactoEmergencia: cliente.contactoEmergencia,
-    historialMedico: cliente.historialMedico
+    direccion: cliente.direccion || '',
+    ciudad: cliente.ciudad || '',
+    codigoPostal: cliente.codigoPostal || '',
+    ocupacion: cliente.ocupacion || '',
+    estadoCivil: cliente.estadoCivil || '',
+    contactoEmergencia: cliente.contactoEmergencia || undefined,
+    historialMedico: cliente.historialMedico ? {
+      alergias: cliente.historialMedico.alergias || '',
+      enfermedadesCronicas: cliente.historialMedico.enfermedadesCronicas || '',
+      medicamentosActuales: cliente.historialMedico.medicamentosActuales || '',
+      cirugiasPrevias: cliente.historialMedico.cirugiasPrevias || ''
+    } : {
+      alergias: '',
+      enfermedadesCronicas: '',
+      medicamentosActuales: '',
+      cirugiasPrevias: ''
+    }
   };
 };
 
 // Función para agregar datos de citas al cliente
-const addAppointmentsData = (cliente: Cliente, citas: CitaCliente[] | undefined): Cliente => {
+const addAppointmentsData = (cliente: Cliente, citas: any[] | undefined): Cliente => {
   if (!citas || citas.length === 0) {
     return cliente;
   }
 
   // Ordenar citas por fecha
   const citasOrdenadas = [...citas].sort((a, b) => 
-    new Date(a.date).getTime() - new Date(b.date).getTime()
+    new Date(a.fechaHora || a.date).getTime() - new Date(b.fechaHora || b.date).getTime()
   );
 
   // Encontrar última cita (fecha más reciente en el pasado)
   const hoy = new Date();
-  const ultimasCitas = citasOrdenadas.filter(cita => new Date(cita.date) <= hoy);
+  const ultimasCitas = citasOrdenadas.filter(cita => 
+    new Date(cita.fechaHora || cita.date) <= hoy && 
+    cita.estado !== 'cancelada' && 
+    cita.estado !== 'no asistió'
+  );
   const ultimaCita = ultimasCitas.length > 0 ? ultimasCitas[ultimasCitas.length - 1] : null;
 
   // Encontrar próxima cita (fecha más cercana en el futuro)
-  const proximasCitas = citasOrdenadas.filter(cita => new Date(cita.date) > hoy);
+  const proximasCitas = citasOrdenadas.filter(cita => 
+    new Date(cita.fechaHora || cita.date) > hoy && 
+    cita.estado !== 'cancelada'
+  );
   const proximaCita = proximasCitas.length > 0 ? proximasCitas[0] : null;
 
   // Determinar estado del tratamiento basado en citas
@@ -260,8 +277,8 @@ const addAppointmentsData = (cliente: Cliente, citas: CitaCliente[] | undefined)
 
   return {
     ...cliente,
-    lastVisit: ultimaCita ? ultimaCita.date : undefined,
-    nextVisit: proximaCita ? proximaCita.date : undefined,
+    lastVisit: ultimaCita ? (ultimaCita.fechaHora || ultimaCita.date) : undefined,
+    nextVisit: proximaCita ? (proximaCita.fechaHora || proximaCita.date) : undefined,
     treatmentStatus
   };
 };

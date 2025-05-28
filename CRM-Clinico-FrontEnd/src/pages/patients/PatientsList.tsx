@@ -45,7 +45,8 @@ import {
   CalendarMonth as CalendarIcon,
   MedicalInformation as MedicalIcon,
   MoreVert as MoreVertIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  EventAvailable as EventAvailableIcon
 } from '@mui/icons-material';
 import { clienteService, type Cliente } from '../../services/clienteService';
 
@@ -280,18 +281,6 @@ const PatientsList = () => {
             Filtros
           </Button>
         </Box>
-        
-        <Button
-          variant="contained"
-          startIcon={<AddIcon />}
-          onClick={() => navigate('/patients/new')}
-          sx={{ 
-            height: 40,
-            whiteSpace: 'nowrap'
-          }}
-        >
-          Nuevo Paciente
-        </Button>
       </Box>
 
       {/* Stats Cards */}
@@ -523,11 +512,35 @@ const PatientsList = () => {
                           )}
                         </Box>
                       </TableCell>
-                      <TableCell>{patient.lastVisit || 'Sin visitas'}</TableCell>
                       <TableCell>
-                        {patient.nextVisit || (
+                        {patient.lastVisit ? new Date(patient.lastVisit).toLocaleDateString('es-ES', {
+                          day: '2-digit',
+                          month: 'short',
+                          year: 'numeric'
+                        }) : (
                           <Chip 
-                            label="Sin cita" 
+                            label="Sin visitas" 
+                            size="small"
+                            variant="outlined"
+                          />
+                        )}
+                      </TableCell>
+                      <TableCell>
+                        {patient.nextVisit ? (
+                          <Chip 
+                            icon={<EventAvailableIcon />}
+                            label={new Date(patient.nextVisit).toLocaleDateString('es-ES', {
+                              day: '2-digit',
+                              month: 'short',
+                              year: 'numeric'
+                            })}
+                            color="primary"
+                            size="small"
+                            variant="outlined"
+                          />
+                        ) : (
+                          <Chip 
+                            label="Sin cita programada" 
                             size="small"
                             variant="outlined"
                           />

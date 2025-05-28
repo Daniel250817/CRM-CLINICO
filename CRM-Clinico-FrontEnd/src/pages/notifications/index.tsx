@@ -198,15 +198,13 @@ const NotificationsPage = () => {
                     }}
                     onClick={() => !notification.leida && handleMarkAsRead(notification)}
                     secondaryAction={
-                      <>
-                        <IconButton
-                          edge="end"
-                          aria-label="más opciones"
-                          onClick={(e) => handleMenuOpen(e, notification.id)}
-                        >
-                          <MoreVertIcon />
-                        </IconButton>
-                      </>
+                      <IconButton
+                        edge="end"
+                        aria-label="más opciones"
+                        onClick={(e) => handleMenuOpen(e, notification.id)}
+                      >
+                        <MoreVertIcon />
+                      </IconButton>
                     }
                   >
                     <ListItemAvatar>

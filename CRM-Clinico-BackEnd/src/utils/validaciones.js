@@ -58,9 +58,9 @@ const clienteSchemas = {
         .trim()
         .toLowerCase(),
       telefono: z.string()
-        .min(6, 'El teléfono debe tener al menos 6 caracteres')
-        .max(20, 'El teléfono no puede tener más de 20 caracteres')
-        .regex(/^[0-9+\-\s]+$/, 'El teléfono solo puede contener números, +, - y espacios')
+        .min(8, 'El teléfono debe tener al menos 8 dígitos')
+        .max(9, 'El teléfono no puede tener más de 9 dígitos')
+        .regex(/^[0-9]{8,9}$/, 'El teléfono solo puede contener números y debe tener entre 8 y 9 dígitos')
         .trim(),
       fechaNacimiento: z.string()
         .nullable()
@@ -88,9 +88,9 @@ const clienteSchemas = {
         .trim()
         .toLowerCase(),
       telefono: z.string()
-        .min(6, 'El teléfono debe tener al menos 6 caracteres')
-        .max(20, 'El teléfono no puede tener más de 20 caracteres')
-        .regex(/^[0-9+\-\s]+$/, 'El teléfono solo puede contener números, +, - y espacios')
+        .min(8, 'El teléfono debe tener al menos 8 dígitos')
+        .max(9, 'El teléfono no puede tener más de 9 dígitos')
+        .regex(/^[0-9]{8,9}$/, 'El teléfono solo puede contener números y debe tener entre 8 y 9 dígitos')
         .trim(),
       fechaNacimiento: z.string()
         .nullable()
@@ -107,7 +107,10 @@ const clienteSchemas = {
     estadoCivil: z.string().nullable().optional(),
     contactoEmergencia: z.object({
       nombre: z.string(),
-      telefono: z.string(),
+      telefono: z.string()
+        .min(8, 'El teléfono del contacto debe tener al menos 8 dígitos')
+        .max(9, 'El teléfono del contacto no puede tener más de 9 dígitos')
+        .regex(/^[0-9]{8,9}$/, 'El teléfono del contacto solo puede contener números y debe tener entre 8 y 9 dígitos'),
       relacion: z.string()
     }).nullable().optional(),
     historialMedico: z.object({

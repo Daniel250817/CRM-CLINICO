@@ -104,6 +104,7 @@ const PatientProfile = () => {
     archivo: null as File | null
   });
   const [citas, setCitas] = useState<Cita[]>([]);
+  const [proximaCita, setProximaCita] = useState<Cita | null>(null);
   const [loadingCitas, setLoadingCitas] = useState(false);
   const [errorCitas, setErrorCitas] = useState<string | null>(null);
   
@@ -159,6 +160,35 @@ const PatientProfile = () => {
     
     fetchPatientProfile();
   }, [id, navigate]);
+
+  // Cargar las citas del paciente
+  useEffect(() => {
+    const fetchCitas = async () => {
+      if (!id) return;
+      
+      try {
+        setLoadingCitas(true);
+        const citasData = await citaService.obtenerCitasCliente(id);
+        setCitas(citasData);
+        
+        // Encontrar la próxima cita (primera cita futura)
+        const now = new Date();
+        const citasFuturas = citasData
+          .filter(cita => new Date(cita.fechaHora) > now)
+          .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime());
+        
+        setProximaCita(citasFuturas.length > 0 ? citasFuturas[0] : null);
+        setErrorCitas(null);
+      } catch (err) {
+        console.error('Error al cargar las citas:', err);
+        setErrorCitas('No se pudieron cargar las citas');
+      } finally {
+        setLoadingCitas(false);
+      }
+    };
+
+    fetchCitas();
+  }, [id]);
 
   const handleTabChange = (_event: React.SyntheticEvent, newValue: number) => {
     setTabValue(newValue);
@@ -283,16 +313,25 @@ const PatientProfile = () => {
                 {cliente.usuario.nombre}
               </Typography>
               <Stack direction="row" spacing={2}>
-                <Chip
-                  icon={<EventAvailableIcon />}
-                  label="Próxima cita: 15 Jun 2024"
-                  sx={{ bgcolor: alpha(theme.palette.common.white, 0.2) }}
-                />
-                <Chip
-                  icon={<AssignmentIcon />}
-                  label="Tratamientos activos: 2"
-                  sx={{ bgcolor: alpha(theme.palette.common.white, 0.2) }}
-                />
+                {loadingCitas ? (
+                  <CircularProgress size={20} sx={{ color: 'white' }} />
+                ) : proximaCita ? (
+                  <Chip
+                    icon={<EventAvailableIcon />}
+                    label={`Próxima cita: ${new Date(proximaCita.fechaHora).toLocaleDateString('es-ES', {
+                      day: '2-digit',
+                      month: 'short',
+                      year: 'numeric'
+                    })}`}
+                    sx={{ bgcolor: alpha(theme.palette.common.white, 0.9), color: theme.palette.primary.main }}
+                  />
+                ) : (
+                  <Chip
+                    icon={<EventAvailableIcon />}
+                    label="Sin citas programadas"
+                    sx={{ bgcolor: alpha(theme.palette.common.white, 0.9), color: theme.palette.primary.main }}
+                  />
+                )}
               </Stack>
             </Box>
             <Box sx={{ flex: { xs: '1 1 100%', sm: '0 0 auto' } }}>

@@ -51,8 +51,15 @@ module.exports = (sequelize) => {
       allowNull: false
     },
     telefono: {
-      type: DataTypes.STRING(20),
-      allowNull: false
+      type: DataTypes.STRING(9),
+      allowNull: false,
+      validate: {
+        isNumeric: true,
+        len: {
+          args: [8,9],
+          msg: 'El teléfono debe contener entre 8 y 9 dígitos numéricos'
+        }
+      }
     },
     historialMedico: {
       type: DataTypes.TEXT,
@@ -79,17 +86,51 @@ module.exports = (sequelize) => {
       type: DataTypes.STRING(200),
       allowNull: true
     },
+    ciudad: {
+      type: DataTypes.STRING(100),
+      allowNull: true
+    },
+    codigoPostal: {
+      type: DataTypes.STRING(10),
+      allowNull: true
+    },
     ocupacion: {
       type: DataTypes.STRING(100),
       allowNull: true
     },
-    contactoEmergencia: {
-      type: DataTypes.STRING(100),
+    estadoCivil: {
+      type: DataTypes.ENUM('soltero', 'casado', 'divorciado', 'viudo'),
       allowNull: true
     },
+    contactoEmergencia: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      validate: {
+        isValidContacto(value) {
+          if (!value) return; // Si es null o undefined, no validar
+          
+          try {
+            const contacto = JSON.parse(value);
+            if (!contacto.telefono) return;
+            
+            // Validar que el teléfono tenga entre 8 y 9 dígitos numéricos
+            const telefonoRegex = /^[0-9]{8,9}$/;
+            if (!telefonoRegex.test(contacto.telefono)) {
+              throw new Error('El teléfono del contacto de emergencia debe contener entre 8 y 9 dígitos numéricos');
+            }
+          } catch (error) {
+            throw new Error(error.message || 'El formato del contacto de emergencia es inválido');
+          }
+        }
+      }
+    },
     telefonoEmergencia: {
-      type: DataTypes.STRING(20),
-      allowNull: true
+      type: DataTypes.STRING(8),
+      allowNull: false,
+      validate: {
+        is: /^[0-9]{8}$/,
+        msg: 'El teléfono debe contener exactamente 8 dígitos numéricos'
+      }
     },
     ultimaVisita: {
       type: DataTypes.DATE,

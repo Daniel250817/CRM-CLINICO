@@ -135,114 +135,73 @@ class ClienteController {
         clienteId = req.params.id;
       }
       
-      // Buscar el cliente con su usuario asociado
-      const cliente = await db.Cliente.findByPk(clienteId, {
-        include: [{
-          model: db.Usuario,
-          as: 'usuario'
-        }]
-      });
+      // Buscar el cliente
+      const cliente = await db.Cliente.findByPk(clienteId);
       
       if (!cliente) {
         return next(new NotFoundError(`No existe un cliente con ID: ${clienteId}`));
       }
       
       // Extraer datos del request
-      const { 
-        usuario,
-        direccion,
-        ciudad,
-        codigoPostal,
-        ocupacion,
-        estadoCivil,
-        contactoEmergencia,
-        historialMedico
-      } = req.body;
-      
-      // Actualizar datos del usuario si se proporcionan
-      if (usuario) {
-        if (!cliente.usuario) {
-          return next(new ValidationError('El cliente no tiene un usuario asociado'));
-        }
+      const { usuario, direccion, ciudad, codigoPostal, ocupacion, estadoCivil, contactoEmergencia, historialMedico } = req.body;
 
-        const { nombre, apellidos, email, telefono, fechaNacimiento, genero } = usuario;
-
-        // Verificar si el email ya existe (solo si se está cambiando)
-        if (email && email !== cliente.usuario.email) {
-          const existeEmail = await db.Usuario.findOne({
-            where: {
-              email,
-              id: { [db.Sequelize.Op.ne]: cliente.usuario.id }
-            }
-          });
-
-          if (existeEmail && existeEmail.id !== cliente.usuario.id) {
-            throw new ValidationError('El email ya está registrado por otro usuario', {
-              errors: [{
-                field: 'email',
-                message: 'Este email ya está siendo utilizado por otro usuario. Por favor, use un email diferente.'
-              }]
-            });
-          }
-        }
-
-        // Actualizar datos del usuario
-        await cliente.usuario.update({
-          nombre: nombre || cliente.usuario.nombre,
-          apellidos: apellidos || cliente.usuario.apellidos,
-          email: email || cliente.usuario.email,
-          telefono: telefono || cliente.usuario.telefono,
-          fechaNacimiento: fechaNacimiento || cliente.usuario.fechaNacimiento,
-          genero: genero || cliente.usuario.genero
-        });
-      }
-
-      // Actualizar datos del cliente
-      await cliente.update({
+      // Crear objeto de actualización
+      const datosActualizacion = {
+        // Datos del usuario
+        nombre: usuario?.nombre ?? cliente.nombre,
+        apellidos: usuario?.apellidos ?? cliente.apellidos,
+        email: usuario?.email ?? cliente.email,
+        telefono: usuario?.telefono ?? cliente.telefono,
+        fechaNacimiento: usuario?.fechaNacimiento ?? cliente.fechaNacimiento,
+        genero: usuario?.genero ?? cliente.genero,
+        
+        // Datos de dirección y contacto
         direccion: direccion !== undefined ? direccion : cliente.direccion,
         ciudad: ciudad !== undefined ? ciudad : cliente.ciudad,
         codigoPostal: codigoPostal !== undefined ? codigoPostal : cliente.codigoPostal,
         ocupacion: ocupacion !== undefined ? ocupacion : cliente.ocupacion,
         estadoCivil: estadoCivil !== undefined ? estadoCivil : cliente.estadoCivil,
+        
+        // Datos de contacto de emergencia
         contactoEmergencia: contactoEmergencia !== undefined ? 
-          (typeof contactoEmergencia === 'string' ? contactoEmergencia : JSON.stringify(contactoEmergencia)) 
-          : cliente.contactoEmergencia,
+          JSON.stringify(contactoEmergencia) : 
+          cliente.contactoEmergencia,
+        
+        // Historial médico
         historialMedico: historialMedico !== undefined ? 
-          (typeof historialMedico === 'string' ? historialMedico : JSON.stringify(historialMedico)) 
-          : cliente.historialMedico
-      });
+          JSON.stringify(historialMedico) : 
+          cliente.historialMedico
+      };
 
-      // Recargar el cliente con sus relaciones para obtener los datos actualizados
-      await cliente.reload({
-        include: [{
-          model: db.Usuario,
-          as: 'usuario'
-        }]
-      });
+      // Actualizar el cliente
+      await cliente.update(datosActualizacion);
 
       // Formatear la respuesta
       const clienteFormateado = {
         id: cliente.id,
+        nombre: cliente.nombre,
+        apellidos: cliente.apellidos,
+        email: cliente.email,
+        telefono: cliente.telefono,
+        historialMedico: cliente.historialMedico ? 
+          (typeof cliente.historialMedico === 'string' ? JSON.parse(cliente.historialMedico) : cliente.historialMedico) 
+          : null,
+        fechaNacimiento: cliente.fechaNacimiento,
+        genero: cliente.genero,
         direccion: cliente.direccion,
         ciudad: cliente.ciudad,
         codigoPostal: cliente.codigoPostal,
         ocupacion: cliente.ocupacion,
         estadoCivil: cliente.estadoCivil,
-        historialMedico: cliente.historialMedico ? 
-          (typeof cliente.historialMedico === 'string' ? JSON.parse(cliente.historialMedico) : cliente.historialMedico) 
-          : null,
         contactoEmergencia: cliente.contactoEmergencia ? 
           (typeof cliente.contactoEmergencia === 'string' ? JSON.parse(cliente.contactoEmergencia) : cliente.contactoEmergencia) 
-          : null,
-        usuario: cliente.usuario ? {
-          nombre: cliente.usuario.nombre,
-          apellidos: cliente.usuario.apellidos,
-          email: cliente.usuario.email,
-          telefono: cliente.usuario.telefono,
-          fechaNacimiento: cliente.usuario.fechaNacimiento,
-          genero: cliente.usuario.genero
-        } : null
+          : null
       };
+      
+      // Agregar logging para debug
+      logger.info('Datos recibidos:', req.body);
+      logger.info('Datos actualizados:', datosActualizacion);
+      logger.info('Cliente formateado:', clienteFormateado);
       
       res.status(200).json({
         status: 'success',
@@ -315,11 +274,27 @@ class ClienteController {
         ],
         order: [['fechaHora', 'DESC']]
       });
+
+      // Formatear las citas antes de enviarlas
+      const citasFormateadas = citas.map(cita => {
+        const citaPlana = cita.get({ plain: true });
+        const fechaHora = new Date(citaPlana.fechaHora);
+        
+        return {
+          ...citaPlana,
+          fechaHora: fechaHora.toISOString(), // Mantener el formato ISO para compatibilidad
+          date: fechaHora.toISOString(), // Agregar campo date para compatibilidad con la interfaz CitaCliente
+          time: fechaHora.toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        };
+      });
       
       res.status(200).json({
         status: 'success',
-        results: citas.length,
-        data: citas
+        results: citasFormateadas.length,
+        data: citasFormateadas
       });
     } catch (error) {
       logger.error(`Error al obtener citas del cliente: ${error}`);

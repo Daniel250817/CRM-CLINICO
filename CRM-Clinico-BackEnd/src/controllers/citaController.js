@@ -35,14 +35,15 @@ class CitaController {
       }
 
       // Verificar disponibilidad del dentista (horario)
-      const fechaCita = new Date(fechaHora);
+      const fechaCitaUTC = new Date(fechaHora);
       
-      // Convertir la hora UTC a hora local
-      const offsetHoras = new Date().getTimezoneOffset() / 60; // Offset en horas
-      const horaLocal = fechaCita.getUTCHours() + (fechaCita.getUTCMinutes() / 60) - offsetHoras;
+      // Convertir UTC a hora local del servidor
+      const horaLocal = fechaCitaUTC.getHours();
+      const minutosLocal = fechaCitaUTC.getMinutes();
+      const horaLocalDecimal = horaLocal + (minutosLocal / 60);
       
-      // Obtener el día de la semana basado en UTC para mantener consistencia con la fecha
-      const diaSemana = fechaCita.getUTCDay();
+      // Obtener el día de la semana en hora local
+      const diaSemana = fechaCitaUTC.getDay();
       const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
       const diaTexto = diasSemana[diaSemana];
       
@@ -51,36 +52,33 @@ class CitaController {
         const disponible = dentista.horarioTrabajo[diaTexto].some(rango => {
           const inicio = parseFloat(rango.inicio);
           const fin = parseFloat(rango.fin);
-          return horaLocal >= inicio && horaLocal < fin;
+          return horaLocalDecimal >= inicio && horaLocalDecimal < fin;
         });
         
         if (!disponible) {
-          // Calcular los horarios UTC equivalentes para el horario del dentista
-          const inicioUTC = parseFloat(dentista.horarioTrabajo[diaTexto][0].inicio) + offsetHoras;
-          const finUTC = parseFloat(dentista.horarioTrabajo[diaTexto][0].fin) + offsetHoras;
+          const horariosDentista = dentista.horarioTrabajo[diaTexto].map(rango => 
+            `${rango.inicio} - ${rango.fin}`
+          ).join(', ');
           
           return next(new BadRequestError(
             `El dentista no está disponible en el horario seleccionado.\n` +
-            `La hora ${fechaCita.getUTCHours()}:${fechaCita.getUTCMinutes().toString().padStart(2, '0')} UTC ` +
-            `(${Math.floor(horaLocal)}:${Math.round((horaLocal % 1) * 60).toString().padStart(2, '0')} hora local) ` +
-            `está fuera del horario del dentista: ${dentista.horarioTrabajo[diaTexto][0].inicio} - ${dentista.horarioTrabajo[diaTexto][0].fin}\n` +
-            `Para este horario del dentista, debe programar citas entre las ${Math.floor(inicioUTC)}:${Math.round((inicioUTC % 1) * 60).toString().padStart(2, '0')} UTC y ${Math.floor(finUTC)}:${Math.round((finUTC % 1) * 60).toString().padStart(2, '0')} UTC`
+            `La hora ${horaLocal}:${String(minutosLocal).padStart(2, '0')} ` +
+            `está fuera del horario del dentista: ${horariosDentista}`
           ));
         }
       } else {
-        // Si no hay horario definido para ese día, el dentista no trabaja
         return next(new BadRequestError(`El dentista no trabaja los ${diaTexto}`));
       }
 
       // Verificar conflictos con otras citas
       const duracionServicio = servicio.duracion || 60; // en minutos
-      const fechaFinCita = new Date(fechaCita.getTime() + duracionServicio * 60000);
+      const fechaFinCita = new Date(fechaCitaUTC.getTime() + duracionServicio * 60000);
       
       const citasConflicto = await db.Cita.findOne({
         where: {
           dentistaId,
           fechaHora: {
-            [db.Sequelize.Op.between]: [fechaCita, fechaFinCita]
+            [db.Sequelize.Op.between]: [fechaCitaUTC, fechaFinCita]
           },
           estado: {
             [db.Sequelize.Op.notIn]: ['cancelada']
@@ -98,7 +96,7 @@ class CitaController {
           clienteId,
           dentistaId,
           servicioId,
-          fechaHora,
+          fechaHora: fechaCitaUTC,
           estado: 'pendiente',
           notas,
           duracion: duracionServicio
@@ -139,58 +137,30 @@ class CitaController {
   }
 
   /**
-   * Obtener todas las citas (filtradas)
+   * Obtener todas las citas
    */
   static async obtenerCitas(req, res, next) {
     try {
-      const { dentista, cliente, fecha, estado, desde, hasta } = req.query;
-      
-      // Construir opciones de consulta
       const where = {};
       
-      if (dentista) where.dentistaId = dentista;
-      if (cliente) where.clienteId = cliente;
-      if (estado) where.estado = estado;
-      
-      // Filtro por fecha
-      if (fecha) {
-        // Filtrar por día específico
-        const fechaInicio = new Date(fecha);
-        const fechaFin = new Date(fecha);
-        fechaFin.setDate(fechaInicio.getDate() + 1); // Hasta el siguiente día
-        
-        where.fechaHora = {
-          [db.Sequelize.Op.gte]: fechaInicio,
-          [db.Sequelize.Op.lt]: fechaFin
-        };
-      } else if (desde || hasta) {
-        // Rango de fechas personalizado
-        where.fechaHora = {};
-        
-        if (desde) {
-          where.fechaHora[db.Sequelize.Op.gte] = new Date(desde);
-        }
-        
-        if (hasta) {
-          where.fechaHora[db.Sequelize.Op.lte] = new Date(hasta);
-        }
+      // Filtrar por estado si se proporciona
+      if (req.query.estado) {
+        where.estado = req.query.estado;
       }
       
-      // Restricciones según el rol
-      if (req.usuario.rol === 'cliente') {
-        // Los clientes solo pueden ver sus propias citas
-        const cliente = await db.Cliente.findOne({ where: { userId: req.usuario.id } });
-        if (!cliente) {
-          return next(new NotFoundError('No se encontró el perfil de cliente asociado'));
-        }
-        where.clienteId = cliente.id;
-      } else if (req.usuario.rol === 'dentista') {
-        // Los dentistas solo pueden ver sus propias citas
-        const dentista = await db.Dentista.findOne({ where: { userId: req.usuario.id } });
-        if (!dentista) {
-          return next(new NotFoundError('No se encontró el perfil de dentista asociado'));
-        }
-        where.dentistaId = dentista.id;
+      // Filtrar por fecha desde
+      if (req.query.desde) {
+        where.fechaHora = {
+          [db.Sequelize.Op.gte]: new Date(req.query.desde)
+        };
+      }
+      
+      // Filtrar por fecha hasta
+      if (req.query.hasta) {
+        where.fechaHora = {
+          ...where.fechaHora,
+          [db.Sequelize.Op.lte]: new Date(req.query.hasta)
+        };
       }
       
       const citas = await db.Cita.findAll({
@@ -210,11 +180,27 @@ class CitaController {
         ],
         order: [['fechaHora', 'ASC']]
       });
+
+      // Formatear las citas antes de enviarlas
+      const citasFormateadas = citas.map(cita => {
+        const citaPlana = cita.get({ plain: true });
+        const fechaHora = new Date(citaPlana.fechaHora);
+        
+        return {
+          ...citaPlana,
+          fechaHora: fechaHora.toISOString(), // Mantener el formato ISO para compatibilidad
+          date: fechaHora.toISOString(), // Agregar campo date para compatibilidad con la interfaz CitaCliente
+          time: fechaHora.toLocaleTimeString('es-ES', {
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        };
+      });
       
       res.status(200).json({
         status: 'success',
-        results: citas.length,
-        data: citas
+        results: citasFormateadas.length,
+        data: citasFormateadas
       });
     } catch (error) {
       logger.error(`Error al obtener citas: ${error}`);
@@ -480,14 +466,15 @@ class CitaController {
       }
 
       // Verificar disponibilidad del dentista (horario)
-      const fechaCita = new Date(fechaHora);
+      const fechaCitaUTC = new Date(fechaHora);
       
-      // Convertir la hora UTC a hora local
-      const offsetHoras = new Date().getTimezoneOffset() / 60;
-      const horaLocal = fechaCita.getUTCHours() + (fechaCita.getUTCMinutes() / 60) - offsetHoras;
+      // Convertir UTC a hora local del servidor
+      const horaLocal = fechaCitaUTC.getHours();
+      const minutosLocal = fechaCitaUTC.getMinutes();
+      const horaLocalDecimal = horaLocal + (minutosLocal / 60);
       
-      // Obtener el día de la semana basado en UTC
-      const diaSemana = fechaCita.getUTCDay();
+      // Obtener el día de la semana en hora local
+      const diaSemana = fechaCitaUTC.getDay();
       const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
       const diaTexto = diasSemana[diaSemana];
       
@@ -496,17 +483,16 @@ class CitaController {
         const disponible = cita.dentista.horarioTrabajo[diaTexto].some(rango => {
           const inicio = parseFloat(rango.inicio);
           const fin = parseFloat(rango.fin);
-          return horaLocal >= inicio && horaLocal < fin;
+          return horaLocalDecimal >= inicio && horaLocalDecimal < fin;
         });
         
         if (!disponible) {
-          const inicioUTC = parseFloat(cita.dentista.horarioTrabajo[diaTexto][0].inicio) + offsetHoras;
-          const finUTC = parseFloat(cita.dentista.horarioTrabajo[diaTexto][0].fin) + offsetHoras;
+          const inicioUTC = parseFloat(cita.dentista.horarioTrabajo[diaTexto][0].inicio) + minutosLocal / 60;
+          const finUTC = parseFloat(cita.dentista.horarioTrabajo[diaTexto][0].fin) + minutosLocal / 60;
           
           return next(new BadRequestError(
             `El dentista no está disponible en el horario seleccionado.\n` +
-            `La hora ${fechaCita.getUTCHours()}:${fechaCita.getUTCMinutes().toString().padStart(2, '0')} UTC ` +
-            `(${Math.floor(horaLocal)}:${Math.round((horaLocal % 1) * 60).toString().padStart(2, '0')} hora local) ` +
+            `La hora ${horaLocal}:${String(minutosLocal).padStart(2, '0')} ` +
             `está fuera del horario del dentista: ${cita.dentista.horarioTrabajo[diaTexto][0].inicio} - ${cita.dentista.horarioTrabajo[diaTexto][0].fin}\n` +
             `Para este horario del dentista, debe programar citas entre las ${Math.floor(inicioUTC)}:${Math.round((inicioUTC % 1) * 60).toString().padStart(2, '0')} UTC y ${Math.floor(finUTC)}:${Math.round((finUTC % 1) * 60).toString().padStart(2, '0')} UTC`
           ));
@@ -517,14 +503,14 @@ class CitaController {
 
       // Verificar conflictos con otras citas
       const duracionActualizada = duracion || cita.duracion;
-      const fechaFinCita = new Date(fechaCita.getTime() + duracionActualizada * 60000);
+      const fechaFinCita = new Date(fechaCitaUTC.getTime() + duracionActualizada * 60000);
       
       const citasConflicto = await db.Cita.findOne({
         where: {
           id: { [db.Sequelize.Op.ne]: id }, // Excluir la cita actual
           dentistaId: cita.dentistaId,
           fechaHora: {
-            [db.Sequelize.Op.between]: [fechaCita, fechaFinCita]
+            [db.Sequelize.Op.between]: [fechaCitaUTC, fechaFinCita]
           },
           estado: {
             [db.Sequelize.Op.notIn]: ['cancelada']

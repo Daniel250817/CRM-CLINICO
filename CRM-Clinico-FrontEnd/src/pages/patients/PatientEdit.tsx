@@ -85,6 +85,25 @@ const PatientEdit = () => {
     }
   });
 
+  const [errors, setErrors] = useState<{[key: string]: string}>({});
+
+  const validatePhone = (phone: string, field: string) => {
+    const phoneRegex = /^[0-9]{8,9}$/;
+    if (!phoneRegex.test(phone)) {
+      setErrors(prev => ({
+        ...prev,
+        [field]: 'El teléfono debe contener solo números y tener entre 8 y 9 dígitos'
+      }));
+      return false;
+    }
+    setErrors(prev => {
+      const newErrors = { ...prev };
+      delete newErrors[field];
+      return newErrors;
+    });
+    return true;
+  };
+
   // Cargar datos del paciente
   useEffect(() => {
     const fetchPatientData = async () => {
@@ -113,10 +132,10 @@ const PatientEdit = () => {
             relacion: ''
           },
           historialMedico: {
-            alergias: data.medical?.allergies || '',
-            enfermedadesCronicas: '',
-            medicamentosActuales: '',
-            cirugiasPrevias: ''
+            alergias: data.historialMedico?.alergias || '',
+            enfermedadesCronicas: data.historialMedico?.enfermedadesCronicas || '',
+            medicamentosActuales: data.historialMedico?.medicamentosActuales || '',
+            cirugiasPrevias: data.historialMedico?.cirugiasPrevias || ''
           }
         });
         
@@ -135,30 +154,67 @@ const PatientEdit = () => {
   const handleInputChange = (field: string, value: string | Dayjs | null) => {
     const fields = field.split('.');
     if (fields.length === 1) {
-      setFormData(prev => ({
-        ...prev,
-        [field]: value
-      }));
+      // Si es el campo teléfono, validar que solo sean números
+      if (field === 'telefono') {
+        // Remover cualquier caracter que no sea número
+        const numericValue = (value?.toString() || '').replace(/[^0-9]/g, '');
+        setFormData(prev => ({
+          ...prev,
+          [field]: numericValue
+        }));
+        validatePhone(numericValue, field);
+      } else {
+        setFormData(prev => ({
+          ...prev,
+          [field]: value
+        }));
+      }
     } else {
-      setFormData(prev => {
-        const fieldKey = fields[0] as keyof FormData;
-        const subField = fields[1];
-        const currentValue = prev[fieldKey] as Record<string, any>;
-        
-        return {
-        ...prev,
-          [fieldKey]: {
-            ...currentValue,
-            [subField]: value
-        }
-        };
-      });
+      // Para campos anidados como contactoEmergencia.telefono
+      if (fields[1] === 'telefono') {
+        const numericValue = (value?.toString() || '').replace(/[^0-9]/g, '');
+        setFormData(prev => {
+          const fieldKey = fields[0] as keyof FormData;
+          const subField = fields[1];
+          const currentValue = prev[fieldKey] as Record<string, any>;
+          
+          return {
+            ...prev,
+            [fieldKey]: {
+              ...currentValue,
+              [subField]: numericValue
+            }
+          };
+        });
+        validatePhone(numericValue, `${fields[0]}.${fields[1]}`);
+      } else {
+        setFormData(prev => {
+          const fieldKey = fields[0] as keyof FormData;
+          const subField = fields[1];
+          const currentValue = prev[fieldKey] as Record<string, any>;
+          
+          return {
+            ...prev,
+            [fieldKey]: {
+              ...currentValue,
+              [subField]: value
+            }
+          };
+        });
+      }
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!id) return;
+
+    // Validar ambos teléfonos antes de enviar
+    if (!validatePhone(formData.telefono, 'telefono') || 
+        (formData.contactoEmergencia.telefono && 
+         !validatePhone(formData.contactoEmergencia.telefono, 'contactoEmergencia.telefono'))) {
+      return;
+    }
 
     setLoading(true);
     setError(null);
@@ -302,6 +358,13 @@ const PatientEdit = () => {
                       label="Teléfono"
                       value={formData.telefono}
                       onChange={(e) => handleInputChange('telefono', e.target.value)}
+                      error={!!errors.telefono}
+                      helperText={errors.telefono}
+                      inputProps={{
+                        maxLength: 9,
+                        inputMode: 'numeric',
+                        pattern: '[0-9]*'
+                      }}
                     />
                   </Grid>
 
@@ -437,6 +500,13 @@ const PatientEdit = () => {
                       label="Teléfono del Contacto"
                       value={formData.contactoEmergencia.telefono}
                       onChange={(e) => handleInputChange('contactoEmergencia.telefono', e.target.value)}
+                      error={!!errors['contactoEmergencia.telefono']}
+                      helperText={errors['contactoEmergencia.telefono']}
+                      inputProps={{
+                        maxLength: 9,
+                        inputMode: 'numeric',
+                        pattern: '[0-9]*'
+                      }}
                     />
                   </Grid>
 

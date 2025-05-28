@@ -275,55 +275,52 @@ const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
             No hay notificaciones nuevas
           </Typography>
         </Box>
-      ) : (
-        <>
-          {notifications.slice(0, 5).map((notification) => (
-            <MenuItem 
-              key={notification.id} 
-              onClick={() => handleMarkAsRead(notification)}
-              sx={{ borderRadius: 1, mb: 0.5 }}
-            >
-              <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, py: 0.5 }}>
-                <Avatar sx={{ 
-                  width: 40, 
-                  height: 40, 
-                  bgcolor: notification.tipo === 'alerta' ? 'error.main' : 
-                           notification.tipo === 'recordatorio' ? 'warning.main' : 
-                           'primary.main' 
-                }}>
-                  <NotificationsIcon fontSize="small" />
-                </Avatar>
-                <Box>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                    <Typography variant="body2" fontWeight={!notification.leida ? 'bold' : 'regular'}>
-                      {notification.mensaje}
-                    </Typography>
-                    {!notification.leida && (
-                      <CircleIcon sx={{ color: 'primary.main', fontSize: 8 }} />
-                    )}
-                  </Box>
-                  <Typography variant="caption" color="text.secondary" display="block">
-                    {formatDate(notification.fecha)}
+      ) : [
+        ...notifications.slice(0, 5).map((notification) => (
+          <MenuItem 
+            key={notification.id} 
+            onClick={() => handleMarkAsRead(notification)}
+            sx={{ borderRadius: 1, mb: 0.5 }}
+          >
+            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, py: 0.5 }}>
+              <Avatar sx={{ 
+                width: 40, 
+                height: 40, 
+                bgcolor: notification.tipo === 'alerta' ? 'error.main' : 
+                         notification.tipo === 'recordatorio' ? 'warning.main' : 
+                         'primary.main' 
+              }}>
+                <NotificationsIcon fontSize="small" />
+              </Avatar>
+              <Box>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                  <Typography variant="body2" fontWeight={!notification.leida ? 'bold' : 'regular'}>
+                    {notification.mensaje}
                   </Typography>
+                  {!notification.leida && (
+                    <CircleIcon sx={{ color: 'primary.main', fontSize: 8 }} />
+                  )}
                 </Box>
+                <Typography variant="caption" color="text.secondary" display="block">
+                  {formatDate(notification.fecha)}
+                </Typography>
               </Box>
-            </MenuItem>
-          ))}
-          
-          <Box sx={{ p: 1, textAlign: 'center' }}>
-            <Button 
-              size="small" 
-              onClick={() => {
-                handleMenuClose();
-                navigate('/notifications');
-              }}
-              fullWidth
-            >
-              Ver todas las notificaciones
-            </Button>
-          </Box>
-        </>
-      )}
+            </Box>
+          </MenuItem>
+        )),
+        <Box key="view-all" sx={{ p: 1, textAlign: 'center' }}>
+          <Button 
+            size="small" 
+            onClick={() => {
+              handleMenuClose();
+              navigate('/notifications');
+            }}
+            fullWidth
+          >
+            Ver todas las notificaciones
+          </Button>
+        </Box>
+      ]}
     </Menu>
   );
 
