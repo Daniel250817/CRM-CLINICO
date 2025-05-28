@@ -26,6 +26,8 @@ import {
 import { useThemeContext } from '../../contexts/ThemeContext';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
+import { api } from '../../services/api';
+import { UserAvatar } from '../../components/common/UserAvatar';
 
 const UserSettings = () => {
   const { mode, toggleThemeMode } = useThemeContext();
@@ -173,7 +175,17 @@ const UserSettings = () => {
 
     try {
       setUploadingAvatar(true);
-      await updateAvatar(user.id, file);
+      const updatedUser = await updateAvatar(user.id, file);
+      
+      // Actualizar el estado del usuario con la nueva información
+      if (updatedUser && updatedUser.settings) {
+        // Actualizar el contexto de autenticación con el nuevo avatar
+        await updateSettings({
+          ...user.settings,
+          avatar: updatedUser.settings.avatar
+        });
+      }
+      
       addNotification('Avatar actualizado exitosamente', 'success');
     } catch (error) {
       console.error('Error al actualizar el avatar:', error);
@@ -185,6 +197,33 @@ const UserSettings = () => {
       }
     }
   };
+
+  // Función para obtener la URL completa del avatar
+  const getAvatarUrl = (avatarPath: string | undefined | null) => {
+    console.log('Avatar Path recibido:', avatarPath);
+    if (!avatarPath) {
+      console.log('No hay avatar, usando default');
+      return '/default-avatar.png';
+    }
+    if (avatarPath.startsWith('http')) {
+      console.log('URL completa detectada:', avatarPath);
+      return avatarPath;
+    }
+    // Asegurarse de que la ruta comience con /uploads
+    const normalizedPath = avatarPath.startsWith('/uploads') ? avatarPath : `/uploads${avatarPath}`;
+    const fullUrl = `${api.baseURL}${normalizedPath}`;
+    console.log('URL construida:', fullUrl);
+    return fullUrl;
+  };
+
+  // Efecto para mostrar la información del usuario cuando se carga
+  useEffect(() => {
+    if (user) {
+      console.log('Usuario cargado:', user);
+      console.log('Settings del usuario:', user.settings);
+      console.log('Avatar URL:', user.settings?.avatar);
+    }
+  }, [user]);
 
   // Mostrar loading mientras no tengamos datos del usuario
   if (!user) {
@@ -221,9 +260,17 @@ const UserSettings = () => {
           <Divider />
           <CardContent>
             <Box sx={{ mb: 3, display: 'flex', alignItems: 'center', flexDirection: 'column' }}>
-              <Avatar
-                src={user.avatar || '/avatar-placeholder.png'}
-                sx={{ width: 100, height: 100, mb: 2 }}
+              <UserAvatar
+                userName={user?.nombre}
+                avatarPath={user?.settings?.avatar}
+                sx={{ 
+                  width: 150, 
+                  height: 150, 
+                  mb: 2,
+                  border: '3px solid',
+                  borderColor: 'primary.main',
+                  boxShadow: 3
+                }}
               />
               <input
                 type="file"
@@ -238,12 +285,18 @@ const UserSettings = () => {
                 onClick={() => fileInputRef.current?.click()}
                 disabled={uploadingAvatar}
                 startIcon={uploadingAvatar ? <CircularProgress size={20} /> : null}
+                sx={{ mt: 1 }}
               >
                 {uploadingAvatar ? 'Subiendo...' : 'Cambiar Imagen'}
               </Button>
+              {user?.settings?.avatar && (
+                <Typography variant="caption" color="textSecondary" sx={{ mt: 1, textAlign: 'center' }}>
+                  La imagen se actualizará automáticamente al seleccionar un nuevo archivo
+                </Typography>
+              )}
             </Box>
 
-            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 3 }}>
               <TextField
                 fullWidth
                 label="Nombre"

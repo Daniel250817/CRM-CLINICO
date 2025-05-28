@@ -44,8 +44,18 @@ class ConflictError extends AppError {
 }
 
 class ValidationError extends AppError {
-  constructor(message = 'Validation failed') {
+  constructor(message = 'Validation failed', details = null) {
     super(message, 422);
+    this.details = details;
+    this.name = 'ValidationError';
+  }
+
+  toJSON() {
+    return {
+      status: this.status,
+      message: this.message,
+      errors: this.details?.errors || null
+    };
   }
 }
 

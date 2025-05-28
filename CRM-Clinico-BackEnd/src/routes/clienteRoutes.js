@@ -22,7 +22,7 @@ router.post('/', validarDatos(clienteSchemas.crearCliente), clienteController.cr
 router.get('/:id', validarId, clienteController.obtenerPerfil);
 
 // Ruta para actualizar cliente específico
-router.patch('/:id', validarId, validarDatos(clienteSchemas.crearCliente), clienteController.actualizarCliente);
+router.patch('/:id', validarId, validarDatos(clienteSchemas.actualizarCliente), clienteController.actualizarCliente);
 
 // Ruta para obtener citas de un cliente específico
 router.get('/:id/citas', validarId, clienteController.obtenerCitasCliente);

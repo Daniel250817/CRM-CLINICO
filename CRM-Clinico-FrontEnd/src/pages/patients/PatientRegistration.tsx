@@ -92,11 +92,19 @@ const PatientRegistration = () => {
         ...prev,
         [field]: value
       }));
-    } else {
+    } else if (fields[0] === 'contactoEmergencia') {
       setFormData(prev => ({
         ...prev,
-        [fields[0]]: {
-          ...prev[fields[0] as keyof typeof prev],
+        contactoEmergencia: {
+          ...prev.contactoEmergencia,
+          [fields[1]]: value
+        }
+      }));
+    } else if (fields[0] === 'historialMedico') {
+      setFormData(prev => ({
+        ...prev,
+        historialMedico: {
+          ...prev.historialMedico,
           [fields[1]]: value
         }
       }));
@@ -109,33 +117,69 @@ const PatientRegistration = () => {
     setError(null);
 
     try {
-      // Convertir Dayjs a Date para el API
-      const fechaNacimiento = formData.fechaNacimiento?.toDate() || null;
+      // Convertir Dayjs a formato YYYY-MM-DD para el API
+      const fechaNacimiento = formData.fechaNacimiento?.format('YYYY-MM-DD') || null;
       
       const registroData: RegistroClienteDTO = {
         usuario: {
-          nombre: formData.nombre,
-          apellidos: formData.apellidos,
-          email: formData.email,
-          telefono: formData.telefono,
+          nombre: formData.nombre.trim(),
+          apellidos: formData.apellidos.trim(),
+          email: formData.email.trim(),
+          telefono: formData.telefono.trim(),
           fechaNacimiento,
-          genero: formData.genero
+          genero: formData.genero || 'no_especificado'
         },
-        direccion: formData.direccion,
-        ciudad: formData.ciudad,
-        codigoPostal: formData.codigoPostal,
-        ocupacion: formData.ocupacion,
-        estadoCivil: formData.estadoCivil,
-        contactoEmergencia: formData.contactoEmergencia,
-        historialMedico: formData.historialMedico
+        direccion: formData.direccion.trim() || null,
+        ciudad: formData.ciudad.trim() || null,
+        codigoPostal: formData.codigoPostal.trim() || null,
+        ocupacion: formData.ocupacion.trim() || null,
+        estadoCivil: formData.estadoCivil || null,
+        contactoEmergencia: formData.contactoEmergencia.nombre.trim() ? {
+          nombre: formData.contactoEmergencia.nombre.trim(),
+          telefono: formData.contactoEmergencia.telefono.trim(),
+          relacion: formData.contactoEmergencia.relacion.trim()
+        } : null,
+        historialMedico: {
+          alergias: formData.historialMedico.alergias.trim() || null,
+          enfermedadesCronicas: formData.historialMedico.enfermedadesCronicas.trim() || null,
+          medicamentosActuales: formData.historialMedico.medicamentosActuales.trim() || null,
+          cirugiasPrevias: formData.historialMedico.cirugiasPrevias.trim() || null
+        }
       };
 
+      try {
       const nuevoCliente = await clienteService.registrarCliente(registroData);
       addNotification('Paciente registrado exitosamente', 'success');
       navigate(`/patients/${nuevoCliente.id}`);
-    } catch (err) {
+      } catch (err: any) {
       console.error('Error al registrar paciente:', err);
-      setError('Error al registrar el paciente. Por favor, intente nuevamente.');
+        
+        // Manejar errores de validación
+        if (err.response?.status === 422) {
+          const errores = err.response.data.errors;
+          let mensajeError = 'Por favor corrija los siguientes errores:';
+          
+          if (Array.isArray(errores)) {
+            errores.forEach(error => {
+              mensajeError += `\n- ${error.mensaje} (${error.campo})`;
+            });
+          } else {
+            mensajeError = err.response.data.message || 'Error de validación en los datos';
+          }
+          
+          setError(mensajeError);
+        } else {
+          // Otros tipos de errores
+          const errorMessage = err.response?.data?.message || err.message || 'Error al registrar el paciente';
+          setError(errorMessage);
+        }
+        
+        addNotification('Error al registrar paciente', 'error');
+      }
+    } catch (err: any) {
+      console.error('Error al procesar el formulario:', err);
+      setError('Error al procesar el formulario. Por favor, revise los datos ingresados.');
+      addNotification('Error al procesar el formulario', 'error');
     } finally {
       setLoading(false);
     }

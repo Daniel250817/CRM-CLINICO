@@ -3,6 +3,7 @@ const userSettingsController = require('../controllers/userSettingsController');
 const { protegerRuta } = require('../middlewares/auth');
 const { validarDatos } = require('../middlewares/validacion');
 const { userSettingsSchemas } = require('../utils/validaciones');
+const { uploadAvatar } = require('../middlewares/fileUpload');
 
 const router = express.Router();
 
@@ -70,5 +71,8 @@ router.get('/', userSettingsController.obtenerSettings);
  *         $ref: '#/components/responses/Unauthorized'
  */
 router.put('/', validarDatos(userSettingsSchemas.actualizarSettings), userSettingsController.actualizarSettings);
+
+// Ruta para actualizar el avatar
+router.post('/avatar', uploadAvatar.single('avatar'), userSettingsController.actualizarAvatar);
 
 module.exports = router; 

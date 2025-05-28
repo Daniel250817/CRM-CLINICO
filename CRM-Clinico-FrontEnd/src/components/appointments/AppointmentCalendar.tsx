@@ -4,7 +4,7 @@ import {
   Card, 
   CardHeader, 
   CardContent,
-  Grid,
+  Grid as MuiGrid,
   Paper,
   Typography,
   Button,
@@ -35,7 +35,9 @@ import {
   AccessTime as AccessTimeIcon,
   Person as PersonIcon,
   Edit as EditIcon,
-  History as HistoryIcon
+  History as HistoryIcon,
+  Close as CloseIcon,
+  Save as SaveIcon
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -48,12 +50,39 @@ import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import esLocale from '@fullcalendar/core/locales/es';
 import dayjs from 'dayjs';
-import { dentistaService, type Dentista } from '../../services/dentistaService';
+import isBetween from 'dayjs/plugin/isBetween';
+import dentistaService from '../../services/dentistaService';
+import type { Dentista } from '../../services/dentistaService';
+import utc from 'dayjs/plugin/utc';
+import timezone from 'dayjs/plugin/timezone';
+
+interface RangoHorario {
+  inicio: string;
+  fin: string;
+}
+
+interface HorarioTrabajo {
+  [dia: string]: RangoHorario[];
+}
+
+interface HorariosDentistaSeleccionado {
+  nombre: string;
+  horarioTrabajo: HorarioTrabajo;
+}
+
+interface DentistaConHorario extends Dentista {
+  horarioTrabajo: HorarioTrabajo;
+}
+
 import { citaService, type Cita } from '../../services/citaService';
 import { clienteService, type Cliente } from '../../services/clienteService';
 import { useNavigate } from 'react-router-dom';
 import { useNotification } from '../../contexts/NotificationContext';
 import { servicioService, type Servicio } from '../../services/servicioService';
+
+dayjs.extend(isBetween);
+dayjs.extend(utc);
+dayjs.extend(timezone);
 
 // Tipos de datos
 interface Appointment {
@@ -163,6 +192,9 @@ const AppointmentCalendar = () => {
   const calendarRef = useRef<FullCalendar>(null);
   const navigate = useNavigate();
 
+  // Añadir un estado para el diálogo de horarios
+  const [horariosDentistaSeleccionado, setHorariosDentistaSeleccionado] = useState<HorariosDentistaSeleccionado | null>(null);
+
   // Cargar pacientes
   useEffect(() => {
     const cargarPacientes = async () => {
@@ -243,15 +275,17 @@ const AppointmentCalendar = () => {
         // Transformar las citas al formato que espera FullCalendar
         const events = response.map(cita => ({
           id: cita.id,
-          title: `${cita.servicio.nombre} - ${cita.dentista.usuario.nombre}`,
+          title: cita.servicio.nombre,
           start: cita.fechaHora,
           end: new Date(new Date(cita.fechaHora).getTime() + cita.duracion * 60000).toISOString(),
           extendedProps: {
             status: cita.estado,
-            patient: cita.dentista.usuario.nombre,
+            patient: cita.cliente.usuario.nombre,
             dentist: cita.dentista.usuario.nombre,
-            service: cita.servicio.nombre
-          }
+            service: cita.servicio.nombre,
+            duration: cita.duracion
+          },
+          className: `event-${cita.estado}`
         }));
         
         setCalendarEvents(events);
@@ -288,10 +322,17 @@ const AppointmentCalendar = () => {
 
   // Evento cuando se selecciona una fecha en el calendario
   const handleDateSelect = (selectInfo: any) => {
-    setSelectedDate(dayjs(selectInfo.start));
+    const selectedDate = dayjs(selectInfo.start);
+    console.log('Fecha seleccionada:', {
+      original: selectedDate.format('YYYY-MM-DD HH:mm:ss'),
+      timezone: dayjs.tz.guess(),
+      offset: selectedDate.format('Z')
+    });
+    
+    setSelectedDate(selectedDate);
     setNewAppointmentData({
       ...newAppointmentData,
-      dateTime: dayjs(selectInfo.start)
+      dateTime: selectedDate
     });
     setOpenNewAppointment(true);
   };
@@ -342,82 +383,61 @@ const AppointmentCalendar = () => {
   };
 
   // Formato de eventos para el calendario
-  const getEventClassNames = (eventInfo: any) => {
-    const status = eventInfo.event.extendedProps.status;
+  const eventContent = (eventInfo: any) => {
+    const { timeText, event } = eventInfo;
+    const { extendedProps } = event;
     
-    switch (status) {
-      case 'confirmed':
-        return 'event-confirmed';
-      case 'pending':
-        return 'event-pending';
-      case 'completed':
-        return 'event-completed';
-      case 'cancelled':
-        return 'event-cancelled';
-      default:
-        return '';
-    }
+    return (
+      <Box className="appointment-card">
+        <Box className="appointment-time">
+          <AccessTimeIcon sx={{ fontSize: '0.875rem' }} />
+          {timeText} • Horario de cita
+        </Box>
+        
+        <Typography className="appointment-title">
+          {event.title}
+        </Typography>
+        
+        <Box className="appointment-patient">
+          <PersonIcon sx={{ fontSize: '0.875rem' }} />
+          {extendedProps.patient}
+        </Box>
+
+        <Typography className="appointment-status">
+          {extendedProps.status}
+        </Typography>
+      </Box>
+    );
   };
 
-  // Verificar disponibilidad del dentista
-  const verificarDisponibilidad = async (dentistaId: number, fecha: string, duracion: number) => {
+  // Función para ver la agenda de un dentista específico
+  const handleViewDentistSchedule = async (dentistaId: string) => {
     try {
-      console.log('Verificando disponibilidad para:', {
-        dentistaId,
-        fecha,
-        duracion
-      });
-
-      const disponibilidad = await dentistaService.obtenerDisponibilidad(dentistaId.toString(), {
-        params: { fecha }
-      });
-
-      console.log('Disponibilidad recibida:', disponibilidad);
-
-      // Si no hay slots disponibles, retornar false
-      if (!disponibilidad.slotsDisponibles || disponibilidad.slotsDisponibles.length === 0) {
-        console.log('No hay slots disponibles para esta fecha');
-        return false;
+      // Obtener el dentista y sus datos
+      const dentista = dentistas.find(d => d.id === dentistaId) as DentistaConHorario;
+      
+      if (!dentista || !dentista.usuario) {
+        throw new Error('No se encontró el dentista seleccionado');
       }
 
-      // Convertir la fecha de la cita a objeto Date
-      const fechaCita = new Date(fecha);
-      const finCita = new Date(fechaCita.getTime() + duracion * 60000);
-
-      console.log('Buscando slot para:', {
-        fechaCita: fechaCita.toISOString(),
-        finCita: finCita.toISOString()
-      });
-
-      // Verificar si el horario está dentro de los slots disponibles
-      const slotDisponible = disponibilidad.slotsDisponibles.some(slot => {
-        const inicioSlot = new Date(slot.inicio);
-        const finSlot = new Date(slot.fin);
-
-        const disponible = fechaCita >= inicioSlot && finCita <= finSlot;
-        
-        if (disponible) {
-          console.log('Slot encontrado:', {
-            inicio: inicioSlot.toISOString(),
-            fin: finSlot.toISOString()
-          });
-        }
-
-        return disponible;
-      });
-
-      if (!slotDisponible) {
-        console.log('No se encontró un slot disponible que coincida con el horario solicitado');
+      // Si no hay horario de trabajo definido, usar un objeto vacío
+      if (!dentista.horarioTrabajo || typeof dentista.horarioTrabajo !== 'object') {
+        setHorariosDentistaSeleccionado({
+          nombre: dentista.usuario.nombre,
+          horarioTrabajo: {}
+        });
+        return;
       }
 
-      return slotDisponible;
+      // Usar el horario del dentista
+      setHorariosDentistaSeleccionado({
+        nombre: dentista.usuario.nombre,
+        horarioTrabajo: dentista.horarioTrabajo
+      });
     } catch (error) {
-      console.error('Error al verificar disponibilidad:', error);
-      if (error instanceof Error) {
-        throw new Error(`No se pudo verificar la disponibilidad del dentista: ${error.message}`);
-      } else {
-        throw new Error('No se pudo verificar la disponibilidad del dentista');
-      }
+      console.error('Error al obtener horarios del dentista:', error);
+      const errorMessage = error instanceof Error ? error.message : 'Error desconocido';
+      addNotification(`Error al obtener los horarios: ${errorMessage}`, 'error');
     }
   };
 
@@ -446,47 +466,45 @@ const AppointmentCalendar = () => {
       // Validar que el paciente exista en la lista de pacientes
       const pacienteSeleccionado = patients.find(p => p.id === newAppointmentData.patient);
       if (!pacienteSeleccionado) {
-        console.error('Datos del paciente:', {
-          selectedId: newAppointmentData.patient,
-          availablePatients: patients.map(p => ({ id: p.id, nombre: p.usuario.nombre }))
-        });
         addNotification('El paciente seleccionado no es válido', 'error');
         return;
       }
 
-      // Verificar disponibilidad antes de crear la cita
-      const fechaHora = newAppointmentData.dateTime.format('YYYY-MM-DDTHH:mm:ss');
-      const disponible = await verificarDisponibilidad(
-        Number(newAppointmentData.dentist),
-        fechaHora,
-        newAppointmentData.duration
-      );
+      // Obtener la fecha local y convertirla a UTC
+      const fechaLocal = dayjs.tz(newAppointmentData.dateTime, dayjs.tz.guess());
+      const fechaUTC = fechaLocal.tz('UTC');
 
-      if (!disponible) {
-        addNotification('El dentista no está disponible en ese horario', 'error');
-        return;
-      }
+      console.log('🕒 Proceso de conversión de hora:', {
+        fechaSeleccionadaOriginal: newAppointmentData.dateTime.format('YYYY-MM-DD HH:mm:ss'),
+        zonaHorariaLocal: dayjs.tz.guess(),
+        offsetLocal: fechaLocal.format('Z'),
+        horaLocal: fechaLocal.format('HH:mm'),
+        horaUTC: fechaUTC.format('HH:mm'),
+        diferenciaHoras: fechaUTC.diff(fechaLocal, 'hour')
+      });
 
+      // Crear el objeto de la cita
       const nuevaCita: NuevaCitaDTO = {
         clienteId: Number(pacienteSeleccionado.id),
         dentistaId: Number(newAppointmentData.dentist),
         servicioId: Number(newAppointmentData.service),
-        fechaHora: fechaHora,
+        fechaHora: fechaUTC.toISOString(),
         duracion: Number(newAppointmentData.duration),
         notas: (newAppointmentData.notes || '').trim(),
         estado: 'pendiente' as const
       };
 
-      console.log('Datos de la nueva cita:', nuevaCita);
+      console.log('📤 Datos finales a enviar:', {
+        ...nuevaCita,
+        horaLocalOriginal: fechaLocal.format('HH:mm'),
+        horaUTCFinal: dayjs(nuevaCita.fechaHora).format('HH:mm')
+      });
 
       // Guardar la cita en el backend
       const citaCreada = await citaService.crearCita(nuevaCita);
 
-      console.log('Cita creada:', citaCreada);
-
       // Verificar que tenemos todos los datos necesarios
       if (!citaCreada?.cliente?.usuario?.nombre || !citaCreada?.dentista?.usuario?.nombre || !citaCreada?.servicio?.nombre) {
-        console.error('Datos incompletos en la respuesta:', citaCreada);
         throw new Error('La respuesta del servidor no incluye todos los datos necesarios');
       }
 
@@ -531,8 +549,8 @@ const AppointmentCalendar = () => {
         notes: '',
       });
     } catch (error: any) {
-      console.error('Error al crear la cita:', error);
-      // Mostrar mensaje de error específico
+      console.error('❌ Error al crear la cita:', error);
+      // Mostrar el mensaje de error que viene del backend
       const errorMessage = error.response?.data?.message || error.message || 'Error al crear la cita';
       addNotification(errorMessage, 'error');
     }
@@ -540,25 +558,29 @@ const AppointmentCalendar = () => {
 
   // Cambiar los datos de la nueva cita
   const handleNewAppointmentChange = (field: keyof NewAppointmentFormData, value: any) => {
-    setNewAppointmentData({ 
-      ...newAppointmentData, 
-      [field]: value,
-      // Si cambia el servicio, actualizamos la duración automáticamente
-      ...(field === 'service' && {
-        duration: services.find(s => s.id === Number(value))?.duracion || 30
-      })
-    });
-  };
+    if (field === 'dateTime' && value) {
+      // Asegurarnos de que la fecha esté en la zona horaria local
+      const localDate = dayjs.tz(value, dayjs.tz.guess());
+      console.log('Actualizando fecha en el formulario:', {
+        fechaOriginal: value.format('YYYY-MM-DD HH:mm:ss'),
+        fechaLocal: localDate.format('YYYY-MM-DD HH:mm:ss'),
+        zonaHoraria: dayjs.tz.guess(),
+        offset: localDate.format('Z')
+      });
+      setNewAppointmentData(prev => ({ ...prev, [field]: localDate }));
+    } else {
+      setNewAppointmentData(prev => ({ 
+        ...prev, 
+        [field]: value,
+        ...(field === 'service' && {
+          duration: services.find(s => s.id === Number(value))?.duracion || 30
+        })
+      }));
+    }
 
-  // Función para ver la agenda de un dentista específico
-  const handleViewDentistSchedule = async (dentistaId: string) => {
-    try {
-      const fecha = dayjs(currentDate).format('YYYY-MM-DD');
-      const disponibilidad = await dentistaService.obtenerDisponibilidad(dentistaId, { params: { fecha } });
-      // Aquí puedes implementar la lógica para mostrar la disponibilidad
-      console.log('Disponibilidad del dentista:', disponibilidad);
-    } catch (error) {
-      console.error('Error al obtener disponibilidad:', error);
+    // Si se selecciona un dentista, cargar los horarios inmediatamente
+    if (field === 'dentist' && value) {
+      handleViewDentistSchedule(value);
     }
   };
 
@@ -595,7 +617,7 @@ const AppointmentCalendar = () => {
         <Box 
           sx={{ 
             display: 'flex', 
-            alignItems: 'center', 
+            alignItems: 'center',
             gap: 2,
             p: 2,
             '&:hover': {
@@ -603,26 +625,24 @@ const AppointmentCalendar = () => {
             }
           }}
         >
-          <Avatar sx={{ bgcolor: 'primary.main' }}>
+          <Avatar 
+            sx={{ 
+              bgcolor: 'primary.main',
+              width: 40,
+              height: 40
+            }}
+          >
             {dentista.usuario.nombre.charAt(0)}
           </Avatar>
           <Box>
             <Typography variant="subtitle1">
-              {`${dentista.usuario.nombre} ${dentista.usuario.apellidos}`}
+              {dentista.usuario.nombre}
             </Typography>
             <Typography variant="body2" color="text.secondary">
-              {dentista.especialidad}
+              {dentista.especialidad || 'Médico dentista'}
             </Typography>
           </Box>
           <Box sx={{ flexGrow: 1 }} />
-          <Button 
-            size="small" 
-            variant="outlined"
-            sx={{ fontSize: '0.75rem' }}
-            onClick={() => handleViewDentistSchedule(dentista.id)}
-          >
-            Ver Agenda
-          </Button>
         </Box>
         {index < dentistas.length - 1 && <Divider />}
       </Box>
@@ -784,120 +804,76 @@ const AppointmentCalendar = () => {
     </TextField>
   );
 
-  // Modificar el formulario de nueva cita
-  const renderNewAppointmentForm = () => (
-    <DialogContent>
-      <LocalizationProvider dateAdapter={AdapterDayjs}>
-        <Stack spacing={3} sx={{ mt: 1 }}>
-          <DateTimePicker
-            label="Fecha y hora"
-            value={newAppointmentData.dateTime}
-            onChange={(date) => handleNewAppointmentChange('dateTime', date)}
-          />
+  // Evento cuando se mueve una cita
+  const handleEventDrop = async (dropInfo: any) => {
+    try {
+      const { event } = dropInfo;
+      const citaId = event.id;
+      const nuevaFecha = event.start;
+      const duracion = dayjs(event.end).diff(dayjs(event.start), 'minute');
 
-          {renderPatientSelector()}
+      console.log('Moviendo cita:', {
+        citaId,
+        nuevaFecha: dayjs(nuevaFecha).format('YYYY-MM-DD HH:mm:ss'),
+        duracion
+      });
 
-          <TextField
-            select
-            label="Dentista"
-            fullWidth
-            value={newAppointmentData.dentist}
-            onChange={(e) => handleNewAppointmentChange('dentist', e.target.value)}
-          >
-            <MenuItem value="" disabled>
-              Seleccionar dentista
-            </MenuItem>
-            {loadingDentistas ? (
-              <MenuItem disabled>
-                <CircularProgress size={20} sx={{ mr: 1 }} />
-                Cargando dentistas...
-              </MenuItem>
-            ) : errorDentistas ? (
-              <MenuItem disabled>
-                Error al cargar dentistas
-              </MenuItem>
-            ) : dentistas.length === 0 ? (
-              <MenuItem disabled>
-                No hay dentistas disponibles
-              </MenuItem>
-            ) : (
-              dentistas.map((dentista) => (
-                <MenuItem key={dentista.id} value={dentista.id}>
-                  {`${dentista.usuario.nombre} ${dentista.usuario.apellidos}`}
-                </MenuItem>
-              ))
-            )}
-          </TextField>
+      // Actualizar en el backend
+      await citaService.actualizarFechaHoraCita(citaId, nuevaFecha.toISOString(), duracion);
 
-          {renderServiceSelector()}
+      // Mostrar notificación de éxito
+      addNotification('Cita actualizada exitosamente', 'success');
 
-          <TextField
-            label="Notas"
-            multiline
-            rows={4}
-            fullWidth
-            value={newAppointmentData.notes}
-            onChange={(e) => handleNewAppointmentChange('notes', e.target.value)}
-          />
-        </Stack>
-      </LocalizationProvider>
-    </DialogContent>
-  );
-
-  const renderAppointment = (cita: Cita) => (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        width: '100%',
-        p: 2,
-        borderRadius: 1,
-        border: '1px solid',
-        borderColor: 'divider',
-        '&:hover': {
-          bgcolor: 'action.hover'
+      // Actualizar la lista de próximas citas
+      const nuevasProximasCitas = await citaService.obtenerCitas({
+        params: {
+          desde: new Date().toISOString(),
+          estado: 'pendiente,confirmada'
         }
-      }}
-    >
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2, mb: 1 }}>
-        <AccessTimeIcon color="action" fontSize="small" />
-        <Typography variant="body2">
-          {new Date(cita.fechaHora).toLocaleTimeString('es-ES', {
-            hour: '2-digit',
-            minute: '2-digit'
-          })}
-        </Typography>
-      </Box>
+      });
+      setProximasCitas(nuevasProximasCitas.slice(0, 5));
+    } catch (error: any) {
+      console.error('Error al mover cita:', error);
       
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-        <PersonIcon color="action" fontSize="small" />
-        <Typography variant="body2">
-          {cita.dentista.usuario.nombre}
-        </Typography>
-      </Box>
+      // Revertir el cambio en el calendario
+      dropInfo.revert();
       
-      <Box sx={{ 
-        display: 'flex', 
-        alignItems: 'center', 
-        justifyContent: 'space-between',
-        mt: 1 
-      }}>
-        <Typography variant="body2" color="text.secondary">
-          {cita.servicio.nombre}
-        </Typography>
-        <Chip
-          size="small"
-          label={cita.estado}
-          color={
-            cita.estado === 'confirmada' ? 'success' :
-            cita.estado === 'pendiente' ? 'warning' :
-            cita.estado === 'cancelada' ? 'error' :
-            'default'
-          }
-        />
-      </Box>
-    </Box>
-  );
+      // Mostrar mensaje de error
+      const errorMessage = error.response?.data?.message || error.message || 'Error al actualizar la cita';
+      addNotification(errorMessage, 'error');
+    }
+  };
+
+  // Evento cuando se redimensiona una cita
+  const handleEventResize = async (resizeInfo: any) => {
+    try {
+      const { event } = resizeInfo;
+      const citaId = event.id;
+      const fechaInicio = event.start;
+      const duracion = dayjs(event.end).diff(dayjs(event.start), 'minute');
+
+      console.log('Redimensionando cita:', {
+        citaId,
+        fechaInicio: dayjs(fechaInicio).format('YYYY-MM-DD HH:mm:ss'),
+        duracion
+      });
+
+      // Actualizar en el backend
+      await citaService.actualizarFechaHoraCita(citaId, fechaInicio.toISOString(), duracion);
+
+      // Mostrar notificación de éxito
+      addNotification('Duración de la cita actualizada exitosamente', 'success');
+    } catch (error: any) {
+      console.error('Error al redimensionar cita:', error);
+      
+      // Revertir el cambio
+      resizeInfo.revert();
+      
+      // Mostrar mensaje de error
+      const errorMessage = error.response?.data?.message || error.message || 'Error al actualizar la duración de la cita';
+      addNotification(errorMessage, 'error');
+    }
+  };
 
   // Renderizar la app
   return (
@@ -1027,7 +1003,7 @@ const AppointmentCalendar = () => {
                 eventClick={handleEventClick}
                 select={handleDateSelect}
                 events={calendarEvents}
-                eventClassNames={getEventClassNames}
+                eventContent={eventContent}
                 selectable={true}
                 editable={true}
                 dayMaxEvents={true}
@@ -1037,6 +1013,11 @@ const AppointmentCalendar = () => {
                 expandRows={true}
                 locale={esLocale}
                 height="auto"
+                eventDrop={handleEventDrop}
+                eventResize={handleEventResize}
+                slotDuration="00:15:00"
+                slotLabelInterval="01:00"
+                nowIndicator={true}
               />
             )}
           </Paper>
@@ -1142,7 +1123,33 @@ const AppointmentCalendar = () => {
               ) : (
                 proximasCitas.map((cita, index) => (
                   <Box key={cita.id} className="appointment-item">
-                    {renderAppointment(cita)}
+                    <Stack spacing={1}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <AccessTimeIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {dayjs(cita.fechaHora).format('HH:mm')} - {dayjs(cita.fechaHora).add(cita.duracion, 'minute').format('HH:mm')}
+                        </Typography>
+                      </Box>
+                      <Typography variant="subtitle2">
+                        {cita.servicio.nombre}
+                      </Typography>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                        <PersonIcon fontSize="small" color="action" />
+                        <Typography variant="body2">
+                          {cita.cliente.usuario.nombre}
+                        </Typography>
+                      </Box>
+                      <Chip 
+                        size="small"
+                        label={cita.estado === 'pendiente' ? 'Pendiente' : 
+                               cita.estado === 'confirmada' ? 'Confirmada' : 
+                               cita.estado === 'completada' ? 'Completada' : 'Cancelada'}
+                        color={cita.estado === 'pendiente' ? 'warning' : 
+                               cita.estado === 'confirmada' ? 'success' : 
+                               cita.estado === 'completada' ? 'info' : 'error'}
+                        variant="outlined"
+                      />
+                    </Stack>
                     {index < proximasCitas.length - 1 && <Divider sx={{ my: 1 }} />}
                   </Box>
                 ))
@@ -1153,19 +1160,244 @@ const AppointmentCalendar = () => {
       </Box>
 
       {/* Modal para crear nueva cita */}
-      <Dialog open={openNewAppointment} onClose={() => setOpenNewAppointment(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Nueva Cita</DialogTitle>
-        {renderNewAppointmentForm()}
-        <DialogActions>
-          <Button onClick={() => setOpenNewAppointment(false)}>Cancelar</Button>
-          <Button 
-            onClick={handleSaveNewAppointment} 
-            variant="contained"
-            color="primary"
-          >
-            Guardar
-          </Button>
-        </DialogActions>
+      <Dialog 
+        open={openNewAppointment} 
+        onClose={() => setOpenNewAppointment(false)} 
+        maxWidth="lg" 
+        fullWidth
+        PaperProps={{
+          sx: {
+            borderRadius: 2,
+            bgcolor: 'background.paper',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+            display: 'flex',
+            flexDirection: 'row'
+          }
+        }}
+      >
+        {/* Panel izquierdo - Formulario */}
+        <Box sx={{ 
+          flex: '1 1 60%', 
+          maxWidth: '60%', 
+          borderRight: 1, 
+          borderColor: 'divider',
+          overflowY: 'auto'
+        }}>
+          <DialogTitle sx={{ 
+            pb: 1,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 1
+          }}>
+            <EventIcon color="primary" />
+            <Typography variant="h5" component="span" fontWeight="500">
+              Nueva Cita
+            </Typography>
+          </DialogTitle>
+
+          <DialogContent>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              <Stack spacing={3}>
+                {/* Sección de Fecha y Hora */}
+                <Box>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Fecha y Hora de la Cita
+                  </Typography>
+                  <DateTimePicker
+                    label="Seleccionar fecha y hora"
+                    value={newAppointmentData.dateTime}
+                    onChange={(date) => {
+                      if (date) {
+                        // Convertir la fecha seleccionada a la zona horaria local
+                        const localDate = dayjs(date).tz(dayjs.tz.guess());
+                        console.log('Fecha seleccionada en DateTimePicker:', {
+                          fechaSeleccionada: date.format('YYYY-MM-DD HH:mm:ss'),
+                          fechaLocal: localDate.format('YYYY-MM-DD HH:mm:ss'),
+                          zonaHoraria: dayjs.tz.guess(),
+                          offset: localDate.format('Z')
+                        });
+                        handleNewAppointmentChange('dateTime', localDate);
+                      }
+                    }}
+                    timezone="system"
+                    sx={{ width: '100%' }}
+                  />
+                  <Typography variant="caption" color="text.secondary" sx={{ mt: 1, display: 'block' }}>
+                    Horario del dentista: 09:00 - 14:00 (hora local)
+                  </Typography>
+                </Box>
+
+                {/* Sección de Paciente */}
+                <Box>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Información del Paciente
+                  </Typography>
+                  {renderPatientSelector()}
+                </Box>
+
+                {/* Sección de Dentista y Servicio */}
+                <Box>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Detalles del Servicio
+                  </Typography>
+                  <Stack spacing={2}>
+                    <TextField
+                      select
+                      label="Seleccionar dentista"
+                      fullWidth
+                      value={newAppointmentData.dentist}
+                      onChange={(e) => {
+                        const selectedId = e.target.value;
+                        console.log('Dentista seleccionado:', {
+                          id: selectedId,
+                          dentista: dentistas.find(d => d.id === selectedId),
+                          fechaActual: newAppointmentData.dateTime?.format('YYYY-MM-DD HH:mm:ss')
+                        });
+                        handleNewAppointmentChange('dentist', selectedId);
+                      }}
+                    >
+                      <MenuItem value="" disabled>
+                        Seleccionar dentista
+                      </MenuItem>
+                      {dentistas.map((dentista) => (
+                        <MenuItem key={dentista.id} value={dentista.id}>
+                          <Stack direction="row" alignItems="center" spacing={2} width="100%">
+                            <Avatar sx={{ bgcolor: 'secondary.main' }}>
+                              {dentista.usuario.nombre.charAt(0)}
+                            </Avatar>
+                            <Box sx={{ flex: 1 }}>
+                              <Typography variant="subtitle2">
+                                {dentista.usuario.nombre}
+                              </Typography>
+                              <Typography variant="caption" color="text.secondary">
+                                {dentista.especialidad || 'Médico dentista'}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </MenuItem>
+                      ))}
+                    </TextField>
+                    {renderServiceSelector()}
+                  </Stack>
+                </Box>
+
+                {/* Sección de Notas */}
+                <Box>
+                  <Typography variant="subtitle1" gutterBottom>
+                    Notas Adicionales
+                  </Typography>
+                  <TextField
+                    multiline
+                    rows={4}
+                    fullWidth
+                    placeholder="Agregue notas o información adicional para la cita"
+                    value={newAppointmentData.notes}
+                    onChange={(e) => handleNewAppointmentChange('notes', e.target.value)}
+                  />
+                </Box>
+              </Stack>
+            </LocalizationProvider>
+          </DialogContent>
+
+          <DialogActions sx={{ p: 2, borderTop: 1, borderColor: 'divider' }}>
+            <Button 
+              onClick={() => setOpenNewAppointment(false)}
+              variant="outlined"
+              startIcon={<CloseIcon />}
+            >
+              Cancelar
+            </Button>
+            <Button 
+              onClick={handleSaveNewAppointment}
+              variant="contained"
+              color="primary"
+              startIcon={<SaveIcon />}
+              disabled={!newAppointmentData.patient || !newAppointmentData.dentist || !newAppointmentData.service || !newAppointmentData.dateTime}
+            >
+              Guardar Cita
+            </Button>
+          </DialogActions>
+        </Box>
+
+        {/* Panel derecho - Horarios */}
+        <Box sx={{ 
+          flex: '1 1 40%', 
+          maxWidth: '40%', 
+          p: 3,
+          bgcolor: 'grey.50'
+        }}>
+          <Typography variant="h6" gutterBottom>
+            Horarios Disponibles
+          </Typography>
+          
+          {newAppointmentData.dentist && newAppointmentData.dateTime ? (
+            <Box>
+              <Typography variant="subtitle2" color="text.secondary" gutterBottom>
+                {dayjs(newAppointmentData.dateTime).format('DD [de] MMMM, YYYY')}
+              </Typography>
+              
+              {horariosDentistaSeleccionado ? (
+                <>
+                  {Object.keys(horariosDentistaSeleccionado.horarioTrabajo).length > 0 ? (
+                    <Box sx={{ mt: 2 }}>
+                      {Object.entries(horariosDentistaSeleccionado.horarioTrabajo)
+                        .sort((a, b) => {
+                          const dias = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+                          return dias.indexOf(a[0]) - dias.indexOf(b[0]);
+                        })
+                        .map(([dia, rangos]) => {
+                          // Asegurarnos de que rangos sea un array y tenga la estructura correcta
+                          const rangosArray = Array.isArray(rangos) ? rangos : [];
+                          
+                          // Formatear el nombre del día
+                          const nombreDia = dia.charAt(0).toUpperCase() + dia.slice(1);
+                          
+                          return (
+                            <Box key={dia} sx={{ 
+                              mb: 2,
+                              p: 1.5,
+                              borderRadius: 1,
+                              bgcolor: 'background.paper',
+                              boxShadow: 1
+                            }}>
+                              <Typography variant="subtitle2" color="primary" gutterBottom>
+                                {nombreDia}
+                              </Typography>
+                              <Stack spacing={0.5}>
+                                {rangosArray.map((rango, index) => (
+                                  <Typography key={index} variant="body1" sx={{ 
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    gap: 1
+                                  }}>
+                                    <AccessTimeIcon fontSize="small" color="action" />
+                                    {rango.inicio} - {rango.fin}
+                                  </Typography>
+                                ))}
+                              </Stack>
+                            </Box>
+                          );
+                        })}
+                    </Box>
+                  ) : (
+                    <Alert severity="info" sx={{ mt: 2 }}>
+                      No hay horarios disponibles para esta fecha
+                    </Alert>
+                  )}
+                </>
+              ) : (
+                <Alert severity="info" sx={{ mt: 2 }}>
+                  Cargando horarios disponibles...
+                </Alert>
+              )}
+            </Box>
+          ) : (
+            <Alert severity="info">
+              Seleccione un dentista y una fecha para ver los horarios disponibles
+            </Alert>
+          )}
+        </Box>
       </Dialog>
 
       {/* Modal para detalles de una cita */}
@@ -1309,6 +1541,8 @@ const AppointmentCalendar = () => {
           </>
         )}
       </Dialog>
+
+      {/* El diálogo de horarios se ha eliminado ya que ahora se muestra en el panel derecho */}
     </Box>
   );
 };

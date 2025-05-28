@@ -18,4 +18,4 @@ router.patch('/:id', validarDatos(tareaSchemas.crearTarea), tareaController.actu
 router.delete('/:id', tareaController.eliminarTarea);
 router.patch('/:id/estado', validarDatos(tareaSchemas.actualizarEstado), tareaController.actualizarEstadoTarea);
 
-module.exports = router;
+module.exports = router; 

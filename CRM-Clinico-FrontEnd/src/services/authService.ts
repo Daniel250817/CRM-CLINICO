@@ -7,12 +7,16 @@ export interface LoginCredentials {
 }
 
 export interface UserSettings {
-  theme: 'light' | 'dark';
+  id: number;
+  userId: number;
+  theme: string;
   language: string;
   notificationEmail: boolean;
   notificationApp: boolean;
   notificationSMS: boolean;
-  avatar?: string;
+  avatar: string | null;
+  createdAt: string;
+  updatedAt: string;
 }
 
 export interface User {
@@ -32,6 +36,11 @@ export interface User {
 export interface AuthResponse {
   token: string;
   user: User;
+}
+
+export interface ApiResponse<T> {
+  status: string;
+  data: T;
 }
 
 export class AuthError extends Error {
@@ -55,7 +64,7 @@ const authService = {
       // Adaptamos la estructura de respuesta
       const responseData: AuthResponse = {
         token: response.data.token,
-        user: response.data.data || response.data.user
+        user: response.data.data
       };
       
       // Guardar token en localStorage
@@ -197,6 +206,17 @@ const authService = {
         throw new AuthError('Datos de usuario incompletos');
       }
       
+      // Asegurarse de que los settings estén presentes
+      if (!userData.settings) {
+        console.warn('No se encontraron settings en la respuesta, intentando obtenerlos...');
+        try {
+          const settingsResponse = await api.get<any>('/settings');
+          userData.settings = settingsResponse.data.data;
+        } catch (error) {
+          console.error('Error al obtener settings:', error);
+        }
+      }
+      
       return {
         id: userData.id,
         nombre: userData.nombre || 'Usuario',
@@ -279,7 +299,7 @@ const authService = {
       const formData = new FormData();
       formData.append('avatar', avatarFile);
 
-      const response = await api.post<any>(`/auth/avatar`, formData, {
+      const response = await api.post<any>(`/settings/avatar`, formData, {
         headers: {
           'Content-Type': 'multipart/form-data'
         }
@@ -297,6 +317,16 @@ const authService = {
         'UPDATE_AVATAR_ERROR',
         error.response?.status
       );
+    }
+  },
+
+  async fetchUserSettings(): Promise<UserSettings> {
+    try {
+      const response = await api.get<ApiResponse<UserSettings>>('/settings');
+      return response.data.data;
+    } catch (error) {
+      console.error('Error al obtener settings del usuario:', error);
+      throw error;
     }
   }
 };

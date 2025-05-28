@@ -135,42 +135,119 @@ class ClienteController {
         clienteId = req.params.id;
       }
       
-      const cliente = await db.Cliente.findByPk(clienteId);
+      // Buscar el cliente con su usuario asociado
+      const cliente = await db.Cliente.findByPk(clienteId, {
+        include: [{
+          model: db.Usuario,
+          as: 'usuario'
+        }]
+      });
       
       if (!cliente) {
         return next(new NotFoundError(`No existe un cliente con ID: ${clienteId}`));
       }
       
-      // Extraer campos a actualizar
+      // Extraer datos del request
       const { 
-        historialMedico, 
-        alergias, 
-        fechaNacimiento,
-        genero,
+        usuario,
         direccion,
+        ciudad,
+        codigoPostal,
         ocupacion,
+        estadoCivil,
         contactoEmergencia,
-        telefonoEmergencia,
-        notas
+        historialMedico
       } = req.body;
       
-      // Actualizar campos si se proporcionan
-      if (historialMedico !== undefined) cliente.historialMedico = historialMedico;
-      if (alergias !== undefined) cliente.alergias = alergias;
-      if (fechaNacimiento !== undefined) cliente.fechaNacimiento = fechaNacimiento;
-      if (genero !== undefined) cliente.genero = genero;
-      if (direccion !== undefined) cliente.direccion = direccion;
-      if (ocupacion !== undefined) cliente.ocupacion = ocupacion;
-      if (contactoEmergencia !== undefined) cliente.contactoEmergencia = contactoEmergencia;
-      if (telefonoEmergencia !== undefined) cliente.telefonoEmergencia = telefonoEmergencia;
-      if (notas !== undefined) cliente.notas = notas;
-      
-      await cliente.save();
+      // Actualizar datos del usuario si se proporcionan
+      if (usuario) {
+        if (!cliente.usuario) {
+          return next(new ValidationError('El cliente no tiene un usuario asociado'));
+        }
+
+        const { nombre, apellidos, email, telefono, fechaNacimiento, genero } = usuario;
+
+        // Verificar si el email ya existe (solo si se está cambiando)
+        if (email && email !== cliente.usuario.email) {
+          const existeEmail = await db.Usuario.findOne({
+            where: {
+              email,
+              id: { [db.Sequelize.Op.ne]: cliente.usuario.id }
+            }
+          });
+
+          if (existeEmail && existeEmail.id !== cliente.usuario.id) {
+            throw new ValidationError('El email ya está registrado por otro usuario', {
+              errors: [{
+                field: 'email',
+                message: 'Este email ya está siendo utilizado por otro usuario. Por favor, use un email diferente.'
+              }]
+            });
+          }
+        }
+
+        // Actualizar datos del usuario
+        await cliente.usuario.update({
+          nombre: nombre || cliente.usuario.nombre,
+          apellidos: apellidos || cliente.usuario.apellidos,
+          email: email || cliente.usuario.email,
+          telefono: telefono || cliente.usuario.telefono,
+          fechaNacimiento: fechaNacimiento || cliente.usuario.fechaNacimiento,
+          genero: genero || cliente.usuario.genero
+        });
+      }
+
+      // Actualizar datos del cliente
+      await cliente.update({
+        direccion: direccion !== undefined ? direccion : cliente.direccion,
+        ciudad: ciudad !== undefined ? ciudad : cliente.ciudad,
+        codigoPostal: codigoPostal !== undefined ? codigoPostal : cliente.codigoPostal,
+        ocupacion: ocupacion !== undefined ? ocupacion : cliente.ocupacion,
+        estadoCivil: estadoCivil !== undefined ? estadoCivil : cliente.estadoCivil,
+        contactoEmergencia: contactoEmergencia !== undefined ? 
+          (typeof contactoEmergencia === 'string' ? contactoEmergencia : JSON.stringify(contactoEmergencia)) 
+          : cliente.contactoEmergencia,
+        historialMedico: historialMedico !== undefined ? 
+          (typeof historialMedico === 'string' ? historialMedico : JSON.stringify(historialMedico)) 
+          : cliente.historialMedico
+      });
+
+      // Recargar el cliente con sus relaciones para obtener los datos actualizados
+      await cliente.reload({
+        include: [{
+          model: db.Usuario,
+          as: 'usuario'
+        }]
+      });
+
+      // Formatear la respuesta
+      const clienteFormateado = {
+        id: cliente.id,
+        direccion: cliente.direccion,
+        ciudad: cliente.ciudad,
+        codigoPostal: cliente.codigoPostal,
+        ocupacion: cliente.ocupacion,
+        estadoCivil: cliente.estadoCivil,
+        historialMedico: cliente.historialMedico ? 
+          (typeof cliente.historialMedico === 'string' ? JSON.parse(cliente.historialMedico) : cliente.historialMedico) 
+          : null,
+        contactoEmergencia: cliente.contactoEmergencia ? 
+          (typeof cliente.contactoEmergencia === 'string' ? JSON.parse(cliente.contactoEmergencia) : cliente.contactoEmergencia) 
+          : null,
+        usuario: cliente.usuario ? {
+          nombre: cliente.usuario.nombre,
+          apellidos: cliente.usuario.apellidos,
+          email: cliente.usuario.email,
+          telefono: cliente.usuario.telefono,
+          fechaNacimiento: cliente.usuario.fechaNacimiento,
+          genero: cliente.usuario.genero
+        } : null
+      };
       
       res.status(200).json({
         status: 'success',
         message: 'Información de cliente actualizada correctamente',
-        data: cliente
+        data: clienteFormateado
       });
     } catch (error) {
       logger.error(`Error al actualizar cliente: ${error}`);
@@ -402,11 +479,24 @@ class ClienteController {
 
       // Validar el género
       const generosValidos = ['masculino', 'femenino', 'otro', 'prefiero no decir', 'no_especificado'];
-      const generoValidado = usuario.genero && generosValidos.includes(usuario.genero) ? usuario.genero : null;
+      const generoValidado = usuario.genero && generosValidos.includes(usuario.genero) ? usuario.genero : 'no_especificado';
 
-      // Crear el cliente
-      const nuevoCliente = await db.Cliente.create({
-        userId: req.usuario.id,
+      // Crear el cliente usando una transacción
+      const nuevoCliente = await db.sequelize.transaction(async (t) => {
+        // Primero crear el usuario
+        const nuevoUsuario = await db.Usuario.create({
+          nombre: usuario.nombre,
+          apellidos: usuario.apellidos,
+          email: usuario.email,
+          telefono: usuario.telefono,
+          rol: 'cliente',
+          password: crypto.randomBytes(10).toString('hex'), // Generar contraseña temporal
+          activo: true
+        }, { transaction: t });
+
+        // Luego crear el cliente asociado
+        const cliente = await db.Cliente.create({
+          userId: nuevoUsuario.id,
         nombre: usuario.nombre,
         apellidos: usuario.apellidos,
         email: usuario.email,
@@ -421,6 +511,26 @@ class ClienteController {
         contactoEmergencia: contactoEmergencia ? JSON.stringify(contactoEmergencia) : null,
         historialMedico: historialMedico ? JSON.stringify(historialMedico) : null,
         fechaRegistro: new Date()
+        }, { transaction: t });
+
+        return {
+          id: cliente.id,
+          usuario: {
+            id: nuevoUsuario.id,
+            nombre: nuevoUsuario.nombre,
+            apellidos: nuevoUsuario.apellidos,
+            email: nuevoUsuario.email,
+            telefono: nuevoUsuario.telefono
+          },
+          direccion: cliente.direccion,
+          ciudad: cliente.ciudad,
+          codigoPostal: cliente.codigoPostal,
+          ocupacion: cliente.ocupacion,
+          estadoCivil: cliente.estadoCivil,
+          contactoEmergencia: cliente.contactoEmergencia ? JSON.parse(cliente.contactoEmergencia) : null,
+          historialMedico: cliente.historialMedico ? JSON.parse(cliente.historialMedico) : null,
+          fechaRegistro: cliente.fechaRegistro
+        };
       });
 
       res.status(201).json({

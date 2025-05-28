@@ -15,6 +15,12 @@ module.exports = (sequelize) => {
         foreignKey: 'clienteId',
         as: 'citas'
       });
+
+      // Relación con Documentos
+      Cliente.hasMany(models.Documento, {
+        foreignKey: 'clienteId',
+        as: 'documentos'
+      });
     }
   }
   

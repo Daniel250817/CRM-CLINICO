@@ -88,8 +88,7 @@ class DentistaController {
         titulo,
         numeroColegiado,
         añosExperiencia,
-        biografia,
-        fotoPerfil
+        biografia
       } = req.body;
       
       // Validar formato del horario
@@ -131,10 +130,10 @@ class DentistaController {
         });
       }
       
-      // Actualizar campos si se proporcionan
+      // Actualizar campos si están definidos
       if (especialidad !== undefined) dentista.especialidad = especialidad;
       if (horarioTrabajo !== undefined) dentista.horarioTrabajo = horarioTrabajo;
-      if (status !== undefined && req.usuario.rol === 'admin') dentista.status = status;
+      if (status !== undefined) dentista.status = status;
       if (titulo !== undefined) dentista.titulo = titulo;
       if (numeroColegiado !== undefined) {
         // Verificar si el número ya está en uso por otro dentista
@@ -154,7 +153,6 @@ class DentistaController {
       }
       if (añosExperiencia !== undefined) dentista.añosExperiencia = añosExperiencia;
       if (biografia !== undefined) dentista.biografia = biografia;
-      if (fotoPerfil !== undefined) dentista.fotoPerfil = fotoPerfil;
       
       await dentista.save();
       
@@ -206,22 +204,6 @@ class DentistaController {
       const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
       const diaTexto = diasSemana[diaSemana];
       
-      // Verificar si el dentista trabaja ese día
-      let horarioDisponible = [];
-      if (dentista.horarioTrabajo && dentista.horarioTrabajo[diaTexto]) {
-        horarioDisponible = dentista.horarioTrabajo[diaTexto];
-      } else {
-        return res.status(200).json({
-          status: 'success',
-          message: `El dentista no trabaja los ${diaTexto}`,
-          disponible: false,
-          data: {
-            horarioTrabajo: { [diaTexto]: [] },
-            citas: []
-          }
-        });
-      }
-      
       // Obtener citas del dentista para ese día
       const fechaInicio = new Date(fecha);
       fechaInicio.setHours(0, 0, 0, 0);
@@ -254,13 +236,12 @@ class DentistaController {
         estado: cita.estado
       }));
       
+      // Devolver todos los horarios del dentista
       res.status(200).json({
         status: 'success',
         disponible: true,
-        data: {
-          horarioTrabajo: { [diaTexto]: horarioDisponible },
-          citas: citasFormateadas
-        }
+        horarioTrabajo: dentista.horarioTrabajo || {},
+        citas: citasFormateadas
       });
     } catch (error) {
       logger.error(`Error al obtener disponibilidad: ${error}`);
@@ -287,6 +268,7 @@ class DentistaController {
       
       const dentistas = await db.Dentista.findAll({
         where,
+        attributes: ['id', 'userId', 'especialidad', 'status', 'horarioTrabajo'],
         include: {
           model: db.Usuario,
           as: 'usuario',

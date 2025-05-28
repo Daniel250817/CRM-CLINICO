@@ -19,7 +19,7 @@ import Login from './pages/auth/Login';
 
 // App Pages
 import Dashboard from './pages/dashboard/index';
-import AppointmentsCalendar from './components/appointments/AppointmentCalendar';
+import AppointmentCalendar from './components/appointments/AppointmentCalendar';
 import PatientProfile from './pages/patients/PatientProfile';
 import PatientRegistration from './pages/patients/PatientRegistration';
 import PatientEdit from './pages/patients/PatientEdit';
@@ -102,7 +102,7 @@ function AppRoutes() {
             path="calendar"
             element={
               <MainLayout onLogout={logout}>
-                <AppointmentsCalendar />
+                <AppointmentCalendar />
               </MainLayout>
             }
           />
@@ -110,7 +110,7 @@ function AppRoutes() {
             path="list"
             element={
               <MainLayout onLogout={logout}>
-                <AppointmentsCalendar />
+                <AppointmentCalendar />
               </MainLayout>
             }
           />

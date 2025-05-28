@@ -1,17 +1,27 @@
-module.exports = (sequelize) => {
-  const { DataTypes } = require('sequelize');
+const { Model, DataTypes } = require('sequelize');
 
-  const Documento = sequelize.define('Documento', {
+module.exports = (sequelize) => {
+  class Documento extends Model {
+    static associate(models) {
+      // Relación con Cliente
+      Documento.belongsTo(models.Cliente, {
+        foreignKey: 'clienteId',
+        as: 'cliente'
+      });
+    }
+  }
+
+  Documento.init({
     id: {
       type: DataTypes.UUID,
       defaultValue: DataTypes.UUIDV4,
       primaryKey: true
     },
     clienteId: {
-      type: DataTypes.UUID,
+      type: DataTypes.INTEGER,
       allowNull: false,
       references: {
-        model: 'Clientes',
+        model: 'clientes',
         key: 'id'
       }
     },
@@ -32,6 +42,8 @@ module.exports = (sequelize) => {
       allowNull: false
     }
   }, {
+    sequelize,
+    modelName: 'Documento',
     tableName: 'documentos',
     timestamps: true
   });

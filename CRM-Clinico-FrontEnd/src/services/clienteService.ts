@@ -144,23 +144,30 @@ export interface Usuario {
 }
 
 export interface RegistroClienteDTO {
-  usuario: Usuario;
-  direccion?: string;
-  ciudad?: string;
-  codigoPostal?: string;
-  ocupacion?: string;
-  estadoCivil?: string;
-  contactoEmergencia?: {
+  usuario: {
+    nombre: string;
+    apellidos: string;
+    email: string;
+    telefono: string;
+    fechaNacimiento: string | null;
+    genero: string;
+  };
+  direccion: string | null;
+  ciudad: string | null;
+  codigoPostal: string | null;
+  ocupacion: string | null;
+  estadoCivil: string | null;
+  contactoEmergencia: {
     nombre: string;
     telefono: string;
     relacion: string;
-  };
-  historialMedico?: {
-    alergias: string;
-    enfermedadesCronicas: string;
-    medicamentosActuales: string;
-    cirugiasPrevias: string;
-  };
+  } | null;
+  historialMedico: {
+    alergias: string | null;
+    enfermedadesCronicas: string | null;
+    medicamentosActuales: string | null;
+    cirugiasPrevias: string | null;
+  } | null;
 }
 
 export interface ActualizarClienteDTO {
@@ -330,6 +337,11 @@ export const clienteService = {
   // Obtener perfil de cliente específico con sus citas
   obtenerPerfilCliente: async (id: string, config?: AxiosRequestConfig) => {
     try {
+      // Validación del ID
+      if (!id || id === 'undefined' || id === 'null') {
+        throw new Error('Se requiere un ID de cliente válido');
+      }
+
       // Obtener datos del cliente
       const clienteResponse = await api.get<{ status: string; data: ClienteAPI }>(
         `/clientes/${id}`, 
@@ -358,13 +370,28 @@ export const clienteService = {
 
   // Obtener citas de un cliente específico
   obtenerCitasCliente: async (id: string, config?: AxiosRequestConfig) => {
+    try {
+      // Validación del ID
+      if (!id || id === 'undefined' || id === 'null') {
+        throw new Error('Se requiere un ID de cliente válido');
+      }
+
     const response = await api.get<{ status: string; data: CitaCliente[] }>(`/clientes/${id}/citas`, config);
     return response.data.data;
+    } catch (error) {
+      console.error('Error en obtenerCitasCliente:', error);
+      throw error;
+    }
   },
 
   // Obtener perfil completo con todos los datos del cliente
   obtenerPerfilCompleto: async (id: string, config?: AxiosRequestConfig) => {
     try {
+      // Validación del ID
+      if (!id || id === 'undefined' || id === 'null') {
+        throw new Error('Se requiere un ID de cliente válido');
+      }
+
       // Obtener cliente
       const cliente = await clienteService.obtenerPerfilCliente(id, config);
       

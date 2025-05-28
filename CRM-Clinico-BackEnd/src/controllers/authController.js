@@ -75,15 +75,21 @@ class AuthController {
       const { email, password } = req.body;
 
       // 1) Verificar si el usuario existe
-      const usuario = await db.Usuario.findOne({ where: { email } });
+      const usuario = await db.Usuario.findOne({ 
+        where: { email },
+        attributes: ['id', 'nombre', 'email', 'password', 'rol'] 
+      });
+
       if (!usuario) {
-        return next(new UnauthorizedError('Email o contraseña incorrectos'));
+        logger.warn(`Intento de login fallido: usuario no encontrado - ${email}`);
+        return next(new UnauthorizedError('Las credenciales proporcionadas son incorrectas'));
       }
 
       // 2) Verificar si la contraseña es correcta
       const passwordCorrecta = await usuario.validarPassword(password);
       if (!passwordCorrecta) {
-        return next(new UnauthorizedError('Email o contraseña incorrectos'));
+        logger.warn(`Intento de login fallido: contraseña incorrecta - ${email}`);
+        return next(new UnauthorizedError('Las credenciales proporcionadas son incorrectas'));
       }
 
       // 3) Actualizar último login
@@ -93,7 +99,7 @@ class AuthController {
       // 4) Generar JWT
       const token = await generarJWT(usuario.id);
 
-      // Respuesta
+      // 5) Respuesta
       res.status(200).json({
         status: 'success',
         token,
@@ -186,41 +192,66 @@ class AuthController {
   /**
    * Verificar token de usuario actual
    */
-  static async verificarToken(req, res) {
-    // Obtener información adicional del usuario según su rol
-    let userData = {
-      id: req.usuario.id,
-      nombre: req.usuario.nombre,
-      email: req.usuario.email,
-      rol: req.usuario.rol,
-      telefono: req.usuario.telefono,
-      estado: req.usuario.estado || 'activo',
-      ultimo_acceso: req.usuario.ultimoLogin,
-      createdAt: req.usuario.createdAt,
-      updatedAt: req.usuario.updatedAt
-    };
-
-    // Si el usuario es un cliente o dentista, obtener información adicional
+  static async verificarToken(req, res, next) {
     try {
-      if (req.usuario.rol === 'cliente') {
-        const cliente = await db.Cliente.findOne({ where: { userId: req.usuario.id } });
-        if (cliente) {
-          userData = { ...userData, cliente };
-        }
-      } else if (req.usuario.rol === 'dentista') {
-        const dentista = await db.Dentista.findOne({ where: { userId: req.usuario.id } });
-        if (dentista) {
-          userData = { ...userData, dentista };
-        }
-      }
-    } catch (error) {
-      logger.error(`Error al obtener información adicional del usuario: ${error}`);
-    }
+      // Obtener información adicional del usuario según su rol
+      let userData = {
+        id: req.usuario.id,
+        nombre: req.usuario.nombre,
+        email: req.usuario.email,
+        rol: req.usuario.rol,
+        telefono: req.usuario.telefono,
+        estado: req.usuario.activo ? 'activo' : 'inactivo',
+        ultimo_acceso: req.usuario.ultimoLogin,
+        createdAt: req.usuario.createdAt,
+        updatedAt: req.usuario.updatedAt
+      };
 
-    res.status(200).json({
-      status: 'success',
-      data: userData
-    });
+      // Obtener los settings del usuario
+      const settings = await db.UserSettings.findOne({
+        where: { userId: req.usuario.id }
+      });
+
+      // Si no existen settings, crearlos con valores por defecto
+      if (!settings) {
+        const defaultSettings = await db.UserSettings.create({
+          userId: req.usuario.id,
+          theme: 'light',
+          language: 'es',
+          notificationEmail: true,
+          notificationApp: true,
+          notificationSMS: false
+        });
+        userData.settings = defaultSettings;
+      } else {
+        userData.settings = settings;
+      }
+
+      // Si el usuario es un cliente o dentista, obtener información adicional
+      try {
+        if (req.usuario.rol === 'cliente') {
+          const cliente = await db.Cliente.findOne({ where: { userId: req.usuario.id } });
+          if (cliente) {
+            userData = { ...userData, cliente };
+          }
+        } else if (req.usuario.rol === 'dentista') {
+          const dentista = await db.Dentista.findOne({ where: { userId: req.usuario.id } });
+          if (dentista) {
+            userData = { ...userData, dentista };
+          }
+        }
+      } catch (error) {
+        logger.error(`Error al obtener información adicional del usuario: ${error}`);
+      }
+
+      res.status(200).json({
+        status: 'success',
+        data: userData
+      });
+    } catch (error) {
+      logger.error(`Error en verificarToken: ${error}`);
+      next(error);
+    }
   }
 
   /**

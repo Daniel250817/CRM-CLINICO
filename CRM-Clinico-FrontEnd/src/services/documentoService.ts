@@ -2,6 +2,7 @@ import { api } from './api';
 import type { AxiosRequestConfig } from 'axios';
 import { clienteService } from './clienteService';
 import type { Cliente } from './clienteService';
+import axios from 'axios';
 
 export interface DocumentoAPI {
   id: string;
@@ -105,9 +106,15 @@ export const tratamientoService = {
         config
       );
       return response.data.data;
-    } catch (error) {
+    } catch (error: any) {
+      if (axios.isAxiosError(error) && error.response?.status === 404) {
+        // Si el endpoint aún no está implementado, devolvemos un array vacío
+        console.info('El endpoint de tratamientos aún no está implementado. Devolviendo lista vacía.');
+        return [];
+      }
+      
+      // Para otros errores, mostramos el error en consola
       console.error('Error al obtener tratamientos del cliente:', error);
-      // Si la API no existe aún, devolvemos un array vacío
       return [];
     }
   },
@@ -171,31 +178,33 @@ export async function obtenerPerfilCompletoCliente(clienteId: string): Promise<{
   documentos: DocumentoAPI[];
   historialMedico?: any;
 }> {
-  // Obtener datos básicos del cliente
-  const cliente = await clienteService.obtenerPerfilCliente(clienteId);
-  
-  // Obtener tratamientos (si la API existe)
-  let tratamientos: TratamientoAPI[] = [];
   try {
-    tratamientos = await tratamientoService.obtenerTratamientosCliente(clienteId);
-  } catch (error) {
-    console.error('Error al obtener tratamientos:', error);
-  }
-  
-  // Obtener documentos (si la API existe)
-  let documentos: DocumentoAPI[] = [];
-  try {
-    documentos = await documentoService.obtenerDocumentosCliente(clienteId);
-  } catch (error) {
-    console.error('Error al obtener documentos:', error);
-  }
-  
-  // Devolver todos los datos combinados
+    const [cliente, documentos, tratamientos] = await Promise.all([
+      clienteService.obtenerPerfilCliente(clienteId),
+      documentoService.obtenerDocumentosCliente(clienteId).catch(error => {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          console.info('El endpoint de documentos aún no está implementado. Devolviendo lista vacía.');
+          return [];
+        }
+        throw error;
+      }),
+      tratamientoService.obtenerTratamientosCliente(clienteId).catch(error => {
+        if (axios.isAxiosError(error) && error.response?.status === 404) {
+          console.info('El endpoint de tratamientos aún no está implementado. Devolviendo lista vacía.');
+          return [];
+        }
+        throw error;
+      })
+    ]);
+
   return {
     cliente,
     tratamientos,
     documentos,
-    // Algunos datos podrían estar en el objeto cliente si el backend los incluye
     historialMedico: cliente.medical || {}
   };
+  } catch (error) {
+    console.error('Error al obtener el perfil completo del cliente:', error);
+    throw new Error('No se pudo obtener el perfil completo del cliente');
+  }
 }

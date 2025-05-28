@@ -101,10 +101,6 @@ module.exports = (sequelize) => {
       type: DataTypes.DATE,
       allowNull: true
     },
-    activo: {
-      type: DataTypes.BOOLEAN,
-      defaultValue: true
-    },
     ultimoLogin: {
       type: DataTypes.DATE,
       allowNull: true

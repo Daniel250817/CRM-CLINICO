@@ -1,5 +1,6 @@
 import { api } from './api';
 import type { AxiosRequestConfig } from 'axios';
+import dayjs from 'dayjs';
 
 // Definición de los tipos
 export interface Dentista {
@@ -11,6 +12,8 @@ export interface Dentista {
     apellidos?: string;
     email: string;
     telefono?: string;
+    avatar?: string;
+    activo?: boolean;
   };
   especialidad: string;
   horarioTrabajo: {
@@ -21,15 +24,14 @@ export interface Dentista {
   numeroColegiado?: string;
   añosExperiencia?: number;
   biografia?: string;
-  fotoPerfil?: string;
   createdAt?: string;
   updatedAt?: string;
   activo: boolean;
 }
 
 export interface DisponibilidadSlot {
-  inicio: string | Date;
-  fin: string | Date;
+  inicio: string;
+  fin: string;
 }
 
 export interface Disponibilidad {
@@ -46,17 +48,21 @@ export interface Especialidad {
 export type DentistaCreacionDatos = Omit<Dentista, 'id' | 'usuario' | 'createdAt' | 'updatedAt'>;
 
 export interface HorarioTrabajo {
-  [dia: string]: Array<{ inicio: string; fin: string }>;
+  [dia: string]: Array<DisponibilidadSlot>;
 }
 
 export interface CitaExistente {
+  id: string;
   fechaHora: string;
   duracion: number;
+  servicio: string;
+  estado: string;
 }
 
-export interface DisponibilidadRespuesta {
-  horarioTrabajo: HorarioTrabajo;
-  citas: CitaExistente[];
+export interface DisponibilidadResponse {
+  fecha: string;
+  horarioTrabajo: DisponibilidadSlot[];
+  slotsDisponibles: DisponibilidadSlot[];
 }
 
 const calcularSlotsDisponibles = (
@@ -172,7 +178,7 @@ const calcularSlotsDisponibles = (
   return slotsDisponiblesFiltrados;
 };
 
-export const dentistaService = {
+const dentistaService = {
   // Obtener todos los dentistas
   obtenerDentistas: async (config?: AxiosRequestConfig) => {
     const response = await api.get<{ status: string; data: Dentista[] }>('/dentistas', config);
@@ -193,46 +199,72 @@ export const dentistaService = {
   // Obtener dentistas disponibles para una fecha específica
   obtenerDentistasDisponibles: async (fecha: string, config?: AxiosRequestConfig) => {
     try {
-      // Primero obtenemos todos los dentistas activos
-      const response = await api.get<{ status: string; data: Dentista[] }>('/dentistas', {
+      // Verificar si hay token
+      const token = localStorage.getItem('token');
+      if (!token) {
+        throw new Error('No hay sesión activa. Por favor, inicie sesión.');
+      }
+
+      console.log('Intentando obtener dentistas con configuración:', {
+        baseURL: api.baseURL,
+        fecha,
+        config,
+        hasToken: !!token
+      });
+      
+      // Primero intentamos obtener todos los dentistas sin filtros
+      const response = await api.get<{ status: string; data: Dentista[]; results?: number }>('/dentistas', {
         ...config,
-        params: {
-          ...config?.params,
-          status: 'activo'
+        headers: {
+          ...config?.headers,
+          Authorization: `Bearer ${token}`
         }
       });
 
-      const dentistas = response.data.data;
+      console.log('Respuesta del servidor:', {
+        status: response.status,
+        data: response.data,
+        headers: response.headers
+      });
       
-      // Filtramos los dentistas que tienen disponibilidad para la fecha dada
-      const dentistasDisponibles = await Promise.all(
-        dentistas.map(async (dentista) => {
-          try {
-            const disponibilidad = await api.get<{ status: string; data: any }>(
-              `/dentistas/${dentista.id}/disponibilidad`,
-              {
-                params: { fecha }
-              }
-            );
-            
-            // Si el dentista tiene horario para ese día, lo incluimos
-            if (disponibilidad.data.data.horarioTrabajo && 
-                Object.values(disponibilidad.data.data.horarioTrabajo).some((slots: any) => slots.length > 0)) {
-              return dentista;
-            }
-            return null;
-          } catch (error) {
-            console.error(`Error al verificar disponibilidad del dentista ${dentista.id}:`, error);
-            return null;
-          }
-        })
+      if (!response.data) {
+        throw new Error('La respuesta del servidor está vacía');
+      }
+
+      // Verificar si la respuesta tiene la estructura esperada
+      if (!response.data.data || !Array.isArray(response.data.data)) {
+        console.error('Formato de respuesta inválido:', response.data);
+        throw new Error('La respuesta del servidor no tiene el formato esperado');
+      }
+
+      // Filtramos los dentistas activos en el frontend
+      const dentistas = response.data.data.filter(dentista => 
+        dentista.status === 'activo' && 
+        dentista.usuario && 
+        dentista.usuario.activo !== false
       );
 
-      // Filtramos los nulls y devolvemos solo los dentistas disponibles
-      return dentistasDisponibles.filter((dentista): dentista is Dentista => dentista !== null);
-    } catch (error) {
-      console.error('Error al obtener dentistas disponibles:', error);
-      throw error;
+      console.log(`Se encontraron ${dentistas.length} dentistas activos:`, dentistas);
+      
+      return dentistas;
+    } catch (error: any) {
+      console.error('Error al obtener dentistas:', {
+        message: error.message,
+        response: error.response?.data,
+        status: error.response?.status,
+        config: error.config
+      });
+
+      if (error.response?.status === 500) {
+        throw new Error('Error interno del servidor. Por favor, contacte al administrador.');
+      } else if (error.response?.status === 401) {
+        localStorage.removeItem('token');
+        throw new Error('Su sesión ha expirado. Por favor, inicie sesión nuevamente.');
+      } else if (error.response?.status === 403) {
+        throw new Error('No tiene permisos para realizar esta acción.');
+      }
+
+      throw new Error(error.response?.data?.message || error.message || 'Error al obtener los dentistas');
     }
   },
 
@@ -243,12 +275,19 @@ export const dentistaService = {
   },
 
   // Obtener disponibilidad de un dentista
-  obtenerDisponibilidad: async (dentistaId: string, config?: AxiosRequestConfig) => {
+  obtenerDisponibilidad: async (dentistaId: string, config?: AxiosRequestConfig): Promise<DisponibilidadResponse> => {
     try {
-      const fecha = config?.params?.fecha || new Date().toISOString().split('T')[0];
+      const fecha = config?.params?.fecha || dayjs().format('YYYY-MM-DD');
       
-      const response = await api.get<{ status: string; data: DisponibilidadRespuesta }>(
-        `/dentistas/${dentistaId}/disponibilidad`,
+      const response = await api.get<{ 
+        status: string; 
+        data: {
+          fecha: string;
+          horarioTrabajo: any;
+          slotsDisponibles: DisponibilidadSlot[];
+        }
+      }>(
+        `/citas/dentista/${dentistaId}/disponibilidad`,
         {
           ...config,
           params: {
@@ -261,20 +300,25 @@ export const dentistaService = {
       console.log('Respuesta del servidor (disponibilidad):', response.data);
 
       if (!response.data || !response.data.data) {
-        throw new Error('La respuesta del servidor no tiene el formato esperado');
+        throw new Error('La respuesta del servidor está vacía');
       }
 
-      const { horarioTrabajo, citas } = response.data.data;
-
-      // Calcular slots disponibles
-      const slotsDisponibles = calcularSlotsDisponibles(fecha, horarioTrabajo, citas);
-
-      console.log('Slots disponibles calculados:', slotsDisponibles);
+      // Asegurarnos de que la respuesta tenga el formato correcto
+      const { data } = response.data;
+      
+      // Si no hay slots disponibles, devolver un array vacío
+      if (!data.slotsDisponibles) {
+        return {
+          fecha: data.fecha,
+          horarioTrabajo: [],
+          slotsDisponibles: []
+        };
+      }
 
       return {
-        fecha,
-        horarioTrabajo,
-        slotsDisponibles
+        fecha: data.fecha,
+        horarioTrabajo: Array.isArray(data.horarioTrabajo) ? data.horarioTrabajo : [],
+        slotsDisponibles: data.slotsDisponibles
       };
     } catch (error) {
       console.error('Error completo al obtener disponibilidad:', error);
@@ -292,3 +336,7 @@ export const dentistaService = {
     return response.data.data;
   }
 };
+
+// Exportar el servicio
+export { dentistaService };
+export default dentistaService;

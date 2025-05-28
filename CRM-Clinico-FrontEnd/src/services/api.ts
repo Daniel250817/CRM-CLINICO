@@ -2,9 +2,6 @@ import axios from 'axios';
 import type { AxiosRequestConfig, AxiosResponse } from 'axios';
 import config from '../config';
 
-// DEBUG: Mostrar la URL base que estamos usando
-console.log('API_BASE_URL:', config.API_BASE_URL);
-
 // Crear una instancia de axios con configuraciones base
 const apiClient = axios.create({
   baseURL: config.API_BASE_URL,
@@ -27,52 +24,26 @@ apiClient.interceptors.request.use(
   }
 );
 
-  // Interceptor para manejar respuestas (manejo global de errores)
+// Interceptor para manejar respuestas (manejo global de errores)
 apiClient.interceptors.response.use(
   (response) => response,
   (error) => {
-    // Loggear error para depuración
-    console.error('API Error:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-
     // Si el error es 401 (No autorizado)
-    if (error.response && error.response.status === 401) {
-      // Solo limpiar token y redirigir si es un error de token inválido o expirado
+    if (error.response?.status === 401) {
       const isAuthError = error.response.data?.message?.toLowerCase().includes('token') ||
-                        error.response.data?.message?.toLowerCase().includes('sesión');
+                       error.response.data?.message?.toLowerCase().includes('sesión');
       
       if (isAuthError) {
-        // Limpiar token y cualquier otra información de autenticación
         localStorage.removeItem('token');
-        
-        // Comprobar si ya estamos en la página de login para evitar refrescos infinitos
         if (!window.location.pathname.includes('/login')) {
-          // Guardar la URL actual para redirigir después del login
           localStorage.setItem('redirectUrl', window.location.pathname);
-          // Redirigir al login
           window.location.href = '/login';
         }
       }
     }
     
-    // Loggear error para depuración
-    console.error('API Error:', {
-      url: error.config?.url,
-      method: error.config?.method,
-      status: error.response?.status,
-      data: error.response?.data,
-      message: error.message
-    });
-    
-    // Devolver un error más descriptivo si es posible
+    // Devolver un error más descriptivo
     if (error.response) {
-      // La solicitud fue realizada y el servidor respondió con un código de estado
-      // que no está en el rango 2xx
       const errorMessage = error.response.data?.message || 'Error en la respuesta del servidor';
       return Promise.reject({
         ...error,
@@ -80,13 +51,11 @@ apiClient.interceptors.response.use(
         statusCode: error.response.status
       });
     } else if (error.request) {
-      // La solicitud fue realizada pero no se recibió respuesta
       return Promise.reject({
         ...error,
         customMessage: 'No se recibió respuesta del servidor. Verifique su conexión a internet.'
       });
     } else {
-      // Error al configurar la solicitud
       return Promise.reject({
         ...error,
         customMessage: 'Error al realizar la solicitud'
@@ -112,7 +81,11 @@ export const api = {
   patch: <T>(url: string, data?: any, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> => {
     return apiClient.patch<T>(url, data, config);
   },
-    delete: <T>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> => {
+  
+  delete: <T>(url: string, config?: AxiosRequestConfig): Promise<AxiosResponse<T>> => {
     return apiClient.delete<T>(url, config);
-  }
+  },
+
+  // Agregar la URL base como una propiedad del objeto api
+  baseURL: config.API_BASE_URL
 };

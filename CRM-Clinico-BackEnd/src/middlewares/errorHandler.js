@@ -1,5 +1,6 @@
 const logger = require('../utils/logger');
-const { AppError } = require('../utils/errors');
+const { AppError, ValidationError: CustomValidationError } = require('../utils/errors');
+const { ValidationError: SequelizeValidationError } = require('sequelize');
 
 /**
  * Controlador de errores de desarrollo - muestra detalles completos
@@ -8,7 +9,12 @@ const sendErrorDev = (err, res) => {
   logger.error(`ERROR 💥: ${err.message}`);
   logger.debug(err.stack);
   
-  // Agregar información adicional para debugging
+  // Si es un error de validación personalizado
+  if (err instanceof CustomValidationError) {
+    return res.status(err.statusCode).json(err.toJSON());
+  }
+  
+  // Para otros tipos de errores, mantener el comportamiento actual
   const errorResponse = {
     status: err.status,
     error: err,
@@ -30,6 +36,11 @@ const sendErrorDev = (err, res) => {
  * Controlador de errores de producción - muestra información limitada
  */
 const sendErrorProd = (err, res) => {
+  // Si es un error de validación personalizado
+  if (err instanceof CustomValidationError) {
+    return res.status(err.statusCode).json(err.toJSON());
+  }
+
   // Error operacional, de confianza: enviar mensaje al cliente
   if (err.isOperational) {
     logger.error(`ERROR 💥: ${err.message}`);
@@ -72,8 +83,12 @@ const handleJWTExpiredError = () =>
  * Error handler para errores de Sequelize de validación
  */
 const handleSequelizeValidationError = (err) => {
-  const errors = err.errors.map((error) => error.message).join('; ');
-  return new AppError(`Datos inválidos: ${errors}`, 400);
+  const errors = err.errors.map((error) => ({
+    field: error.path,
+    message: error.message
+  }));
+  
+  return new CustomValidationError('Error de validación', { errors });
 };
 
 /**

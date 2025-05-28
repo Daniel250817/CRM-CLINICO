@@ -9,11 +9,30 @@ const validarDatos = (schema) => {
   return (req, res, next) => {
     try {
       logger.debug('Datos recibidos para validación:', req.body);
-      schema.parse(req.body);
+      const resultado = schema.safeParse(req.body);
+      
+      if (!resultado.success) {
+        const errores = resultado.error.errors.map(err => ({
+          campo: err.path.join('.'),
+          mensaje: err.message,
+          codigo: err.code
+        }));
+        
+        logger.error('Errores de validación:', errores);
+        
+        return res.status(422).json({
+          status: 'error',
+          message: 'Error de validación',
+          errors: errores
+        });
+      }
+
+      // Si la validación es exitosa, actualizar el body con los datos transformados
+      req.body = resultado.data;
       next();
     } catch (error) {
-      logger.error('Error de validación:', error.errors);
-      next(new ValidationError(error.errors));
+      logger.error('Error inesperado en validación:', error);
+      next(new ValidationError('Error al validar los datos'));
     }
   };
 };

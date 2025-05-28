@@ -92,13 +92,13 @@ const Sidebar: React.FC<SidebarProps> = ({ open, drawerWidth, onDrawerToggle }) 
     },
     {
       title: 'Dentistas',
-      path: '/dentists/list',
+      path: '/dentistas/list',
       icon: <SupervisorAccountIcon />,
       roles: ['admin'],
       children: [
-        { title: 'Lista de Dentistas', path: '/dentists/list' },
-        { title: 'Nuevo Dentista', path: '/dentists/new' },
-        { title: 'Disponibilidad', path: '/dentists/availability' }
+        { title: 'Lista de Dentistas', path: '/dentistas/list' },
+        { title: 'Nuevo Dentista', path: '/dentistas/new' },
+        { title: 'Disponibilidad', path: '/dentistas/availability' }
       ]
     },
     {

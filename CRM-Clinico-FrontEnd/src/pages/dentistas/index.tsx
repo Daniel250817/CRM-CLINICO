@@ -21,7 +21,8 @@ import {
   Edit as EditIcon,
   Visibility as VisibilityIcon,
 } from '@mui/icons-material';
-import { dentistaService, type Dentista } from '../../services/dentistaService';
+import dentistaService from '../../services/dentistaService';
+import type { Dentista } from '../../services/dentistaService';
 import { Link, useNavigate } from 'react-router-dom';
 
 const DentistasPage = () => {
@@ -124,9 +125,12 @@ const DentistasPage = () => {
                       <TableCell>
                         <Box sx={{ display: 'flex', alignItems: 'center' }}>
                           <Avatar 
-                            src={dentista.fotoPerfil} 
+                            src={dentista.usuario?.settings?.avatar} 
                             alt={dentista.usuario?.nombre}
-                            sx={{ mr: 2 }}
+                            sx={{ 
+                              mr: 2,
+                              bgcolor: 'primary.main'
+                            }}
                           >
                             {dentista.usuario?.nombre?.charAt(0)}
                           </Avatar>

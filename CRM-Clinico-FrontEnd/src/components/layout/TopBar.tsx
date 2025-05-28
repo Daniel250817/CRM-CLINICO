@@ -27,6 +27,8 @@ import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
 import { notificationService } from '../../services/notificationService';
 import type { Notification } from '../../services/notificationService';
+import { UserAvatar } from '../../components/common/UserAvatar';
+import { api } from '../../services/api';
 
 interface TopBarProps {
   onDrawerToggle: () => void;
@@ -46,6 +48,40 @@ const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
 
   const isMenuOpen = Boolean(anchorEl);
   const isNotificationsMenuOpen = Boolean(notificationsAnchorEl);
+
+  // Función para obtener la URL completa del avatar
+  const getAvatarUrl = (avatarPath: string | undefined | null): string | undefined => {
+    console.log('Avatar Path recibido:', avatarPath);
+    
+    if (!avatarPath) {
+      console.log('No hay avatar path');
+      return undefined;
+    }
+    
+    if (avatarPath.startsWith('http')) {
+      console.log('URL completa detectada:', avatarPath);
+      return avatarPath;
+    }
+    
+    // Asegurarse de que la ruta comience con /uploads
+    const normalizedPath = avatarPath.startsWith('/uploads') ? avatarPath : `/uploads${avatarPath}`;
+    const fullUrl = `${api.baseURL}${normalizedPath}`;
+    
+    console.log('URL construida:', fullUrl);
+    return fullUrl;
+  };
+
+  // Efecto para mostrar la información del usuario cuando se carga
+  useEffect(() => {
+    if (user) {
+      console.log('Usuario en TopBar:', user);
+      console.log('Settings del usuario:', user.settings);
+      console.log('Avatar path:', user.settings?.avatar);
+      if (user.settings?.avatar) {
+        console.log('URL final del avatar:', getAvatarUrl(user.settings.avatar));
+      }
+    }
+  }, [user]);
 
   // Cargar notificaciones
   useEffect(() => {
@@ -320,22 +356,34 @@ const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
             </Badge>
           </IconButton>
           
-          <IconButton
-            size="large"
-            edge="end"
-            aria-label="cuenta del usuario actual"
-            aria-controls="primary-search-account-menu"
-            aria-haspopup="true"
-            onClick={handleProfileMenuOpen}
-            color="inherit"
-          >
-            <Avatar 
-              sx={{ width: 32, height: 32 }}
-              src={user?.settings?.avatar}
+          <Box sx={{ display: 'flex', alignItems: 'center', ml: 2 }}>
+            {user?.nombre && (
+              <Typography variant="body2" color="inherit" sx={{ mr: 2 }}>
+                {user.nombre}
+              </Typography>
+            )}
+            <IconButton
+              size="large"
+              edge="end"
+              aria-label="cuenta del usuario actual"
+              aria-controls="primary-search-account-menu"
+              aria-haspopup="true"
+              onClick={handleProfileMenuOpen}
+              color="inherit"
             >
-              <PersonIcon />
-            </Avatar>
-          </IconButton>
+              <UserAvatar
+                userName={user?.nombre}
+                avatarPath={user?.settings?.avatar}
+                sx={{ 
+                  width: 32, 
+                  height: 32,
+                  bgcolor: 'primary.dark',
+                  border: '2px solid',
+                  borderColor: 'background.paper'
+                }}
+              />
+            </IconButton>
+          </Box>
         </Box>
       </Toolbar>
       {renderMenu}

@@ -62,10 +62,6 @@ module.exports = (sequelize) => {
     biografia: {
       type: DataTypes.TEXT,
       allowNull: true
-    },
-    fotoPerfil: {
-      type: DataTypes.STRING(255),
-      allowNull: true
     }
   }, {
     sequelize,

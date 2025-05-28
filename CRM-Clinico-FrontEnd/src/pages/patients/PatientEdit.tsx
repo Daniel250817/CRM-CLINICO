@@ -140,13 +140,19 @@ const PatientEdit = () => {
         [field]: value
       }));
     } else {
-      setFormData(prev => ({
+      setFormData(prev => {
+        const fieldKey = fields[0] as keyof FormData;
+        const subField = fields[1];
+        const currentValue = prev[fieldKey] as Record<string, any>;
+        
+        return {
         ...prev,
-        [fields[0]]: {
-          ...prev[fields[0] as keyof typeof prev],
-          [fields[1]]: value
+          [fieldKey]: {
+            ...currentValue,
+            [subField]: value
         }
-      }));
+        };
+      });
     }
   };
 
@@ -163,7 +169,7 @@ const PatientEdit = () => {
         usuario: {
           nombre: formData.nombre,
           apellidos: formData.apellidos,
-          email: formData.email,
+          email: formData.email.trim(),
           telefono: formData.telefono,
           fechaNacimiento: formData.fechaNacimiento?.format('YYYY-MM-DD') || null,
           genero: formData.genero
@@ -189,9 +195,38 @@ const PatientEdit = () => {
       await clienteService.actualizarCliente(id, datosActualizados);
       addNotification('Paciente actualizado exitosamente', 'success');
       navigate(`/patients/${id}`);
-    } catch (err) {
+    } catch (err: any) {
       console.error('Error al actualizar paciente:', err);
-      setError('Error al actualizar el paciente. Por favor, intente nuevamente.');
+      
+      // Manejar errores de validación
+      if (err.response?.status === 422) {
+        const errorData = err.response.data;
+        
+        if (errorData.errors && Array.isArray(errorData.errors)) {
+          // Si hay errores específicos de campo
+          const errorMessages = errorData.errors.map((error: any) => {
+            // Si el error es de email, mostrar mensaje más amigable
+            if (error.field === 'email') {
+              return error.message;
+            }
+            return `${error.message} (${error.field})`;
+          }).join('\n');
+          setError(errorMessages);
+          
+          // Mostrar notificación
+          addNotification(errorMessages, 'error');
+        } else {
+          // Si es un mensaje de error general
+          const errorMessage = errorData.message || 'Error al actualizar el paciente. Por favor, revise los datos ingresados.';
+          setError(errorMessage);
+          addNotification(errorMessage, 'error');
+        }
+      } else {
+        // Otros tipos de errores
+        const errorMessage = 'Error al actualizar el paciente. Por favor, intente nuevamente.';
+        setError(errorMessage);
+        addNotification(errorMessage, 'error');
+      }
     } finally {
       setLoading(false);
     }

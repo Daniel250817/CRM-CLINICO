@@ -21,11 +21,9 @@ const citaRoutes = require('./routes/citaRoutes');
 const servicioRoutes = require('./routes/servicioRoutes');
 const tareaRoutes = require('./routes/tareaRoutes');
 const notificacionRoutes = require('./routes/notificacionRoutes');
-const archivoRoutes = require('./routes/archivoRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const seguimientoRoutes = require('./routes/seguimientoRoutes');
 const userSettingsRoutes = require('./routes/userSettingsRoutes');
-const documentoRoutes = require('./routes/documentoRoutes');
 
 // Inicializar la aplicación
 const app = express();
@@ -42,30 +40,52 @@ if (!fs.existsSync(logDirectory)) {
 }
 
 // Configurar middleware
-app.use(express.json({ limit: '10kb' }));
-app.use(express.urlencoded({ extended: true, limit: '10kb' }));
-app.use(cors());
-app.use(helmet());
+app.use(express.json());
+app.use(express.urlencoded({ extended: true }));
+
+// Configurar CORS
+app.use(cors({
+  origin: ['http://localhost:5173', 'http://127.0.0.1:5173', 'http://localhost:5174', 'http://127.0.0.1:5174'],
+  methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE'],
+  allowedHeaders: ['Content-Type', 'Authorization'],
+  credentials: true
+}));
+
+// Configuración de seguridad
+app.use(helmet({
+  crossOriginResourcePolicy: {
+    policy: "cross-origin"
+  }
+}));
+
 app.use(morgan('combined', { stream: { write: message => logger.http(message.trim()) } }));
 app.use(rateLimiter);
 
 // Rutas API
 app.use('/api/auth', authRoutes);
-app.use('/api/users', usuarioRoutes);
+app.use('/api/usuarios', usuarioRoutes);
 app.use('/api/clientes', clienteRoutes);
-app.use('/api/clientes', documentoRoutes);
 app.use('/api/dentistas', dentistaRoutes);
 app.use('/api/citas', citaRoutes);
 app.use('/api/servicios', servicioRoutes);
 app.use('/api/tareas', tareaRoutes);
 app.use('/api/notificaciones', notificacionRoutes);
-app.use('/api/archivos', archivoRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/seguimiento', seguimientoRoutes);
 app.use('/api/settings', userSettingsRoutes);
 
-// Servir archivos estáticos desde la carpeta public
-app.use('/uploads', express.static('public/uploads'));
+// Servir archivos estáticos con las cabeceras correctas
+app.use('/uploads', (req, res, next) => {
+  res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  next();
+}, express.static(path.join(__dirname, '../uploads'), {
+  setHeaders: (res, path) => {
+    res.setHeader('Cross-Origin-Resource-Policy', 'cross-origin');
+    res.setHeader('Access-Control-Allow-Origin', '*');
+    res.setHeader('Cache-Control', 'no-cache');
+  }
+}));
 
 // Ruta de estado para verificar que el servidor está corriendo
 app.get('/api/status', (req, res) => {

@@ -10,7 +10,8 @@ import {
   InputAdornment,
   IconButton,
   Avatar,
-  Alert
+  Alert,
+  useTheme
 } from '@mui/material';
 import { useFormik } from 'formik';
 import * as yup from 'yup';
@@ -19,10 +20,13 @@ import {
   VisibilityOff, 
   Email as EmailIcon, 
   Lock as LockIcon,
-  MedicalServices as MedicalServicesIcon
+  MedicalServices as MedicalServicesIcon,
+  Brightness4 as Brightness4Icon,
+  Brightness7 as Brightness7Icon
 } from '@mui/icons-material';
 import { useAuth } from '../../contexts/AuthContext';
 import { useNotification } from '../../contexts/NotificationContext';
+import { useThemeContext } from '../../contexts/ThemeContext';
 
 const validationSchema = yup.object({
   email: yup
@@ -40,6 +44,8 @@ interface LoginProps {
 }
 
 const Login: React.FC<LoginProps> = ({ onLogin }) => {
+  const theme = useTheme();
+  const { mode, toggleThemeMode } = useThemeContext();
   const { login } = useAuth();
   const { addNotification } = useNotification();
   const [showPassword, setShowPassword] = useState(false);
@@ -103,19 +109,40 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        backgroundColor: '#f8f9fe',
+        backgroundColor: theme.palette.mode === 'dark' 
+          ? theme.palette.background.default 
+          : '#f8f9fe',
         p: 3,
       }}
     >
+      {/* Botón para cambiar el tema */}
+      <IconButton
+        onClick={toggleThemeMode}
+        sx={{
+          position: 'fixed',
+          top: 16,
+          right: 16,
+          bgcolor: theme.palette.background.paper,
+          '&:hover': {
+            bgcolor: theme.palette.action.hover,
+          },
+        }}
+      >
+        {mode === 'dark' ? <Brightness7Icon /> : <Brightness4Icon />}
+      </IconButton>
+
       {/* Contenedor principal con forma de cuadrado */}
       <Paper
-        elevation={6}
+        elevation={theme.palette.mode === 'dark' ? 2 : 6}
         sx={{
           display: 'flex',
           maxWidth: 1000,
           width: '100%',
           borderRadius: 3,
           overflow: 'hidden',
+          bgcolor: theme.palette.mode === 'dark' 
+            ? theme.palette.background.paper
+            : '#fff',
         }}
       >
         {/* Banner lateral con imagen y color de fondo - Lado izquierdo */}
@@ -134,7 +161,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               position: 'absolute',
               width: '150%',
               height: '150%',
-              background: 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 60%)',
+              background: theme.palette.mode === 'dark'
+                ? 'radial-gradient(circle, rgba(255,255,255,0.1) 0%, rgba(255,255,255,0) 60%)'
+                : 'radial-gradient(circle, rgba(255,255,255,0.2) 0%, rgba(255,255,255,0) 60%)',
               top: '-25%',
               left: '-25%',
             }}
@@ -170,7 +199,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
             flexDirection: 'column',
             justifyContent: 'center',
             p: { xs: 3, md: 5 },
-            bgcolor: 'white',
+            bgcolor: theme.palette.mode === 'dark' 
+              ? theme.palette.background.paper
+              : '#fff',
           }}
         >
           <Box sx={{ mb: 4, textAlign: 'center' }}>
@@ -213,32 +244,40 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               label="Email"
               variant="outlined"
               margin="normal"
+              value={formik.values.email}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={formik.touched.email && Boolean(formik.errors.email)}
+              helperText={formik.touched.email && formik.errors.email}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
                     <EmailIcon color="action" />
                   </InputAdornment>
-                )
-              }}
-              inputProps={{
-                style: { backgroundColor: 'white' }
+                ),
               }}
               sx={{
-                backgroundColor: 'white',
-                "& .MuiOutlinedInput-root": {
-                  backgroundColor: 'white'
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: 'transparent',
+                  '& fieldset': {
+                    borderColor: theme.palette.mode === 'dark' 
+                      ? 'rgba(255, 255, 255, 0.23)' 
+                      : 'rgba(0, 0, 0, 0.23)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.mode === 'dark'
+                      ? 'rgba(255, 255, 255, 0.4)'
+                      : 'rgba(0, 0, 0, 0.4)',
+                  },
                 },
-                "& input:-webkit-autofill": {
-                  WebkitBoxShadow: "0 0 0 100px white inset !important",
-                  WebkitTextFillColor: "#222 !important",
-                  backgroundColor: "white !important",
-                  color: "#222 !important"
-                }
+                '& input:-webkit-autofill': {
+                  '-webkit-background-clip': 'text',
+                  '-webkit-text-fill-color': theme.palette.mode === 'dark' ? '#fff' : '#000',
+                  'transition': 'background-color 5000s ease-in-out 0s',
+                  'box-shadow': 'none',
+                  'background-color': 'transparent !important',
+                },
               }}
-              value={formik.values.email}
-              onChange={formik.handleChange}
-              error={formik.touched.email && Boolean(formik.errors.email)}
-              helperText={formik.touched.email && formik.errors.email}
             />
             <TextField
               fullWidth
@@ -248,6 +287,11 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               type={showPassword ? 'text' : 'password'}
               variant="outlined"
               margin="normal"
+              value={formik.values.password}
+              onChange={formik.handleChange}
+              onBlur={formik.handleBlur}
+              error={formik.touched.password && Boolean(formik.errors.password)}
+              helperText={formik.touched.password && formik.errors.password}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -264,27 +308,30 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                       {showPassword ? <VisibilityOff /> : <Visibility />}
                     </IconButton>
                   </InputAdornment>
-                )
-              }}
-              inputProps={{
-                style: { backgroundColor: 'white' }
+                ),
               }}
               sx={{
-                backgroundColor: 'white',
-                "& .MuiOutlinedInput-root": {
-                  backgroundColor: 'white'
+                '& .MuiOutlinedInput-root': {
+                  backgroundColor: 'transparent',
+                  '& fieldset': {
+                    borderColor: theme.palette.mode === 'dark' 
+                      ? 'rgba(255, 255, 255, 0.23)' 
+                      : 'rgba(0, 0, 0, 0.23)',
+                  },
+                  '&:hover fieldset': {
+                    borderColor: theme.palette.mode === 'dark'
+                      ? 'rgba(255, 255, 255, 0.4)'
+                      : 'rgba(0, 0, 0, 0.4)',
+                  },
                 },
-                "& input:-webkit-autofill": {
-                  WebkitBoxShadow: "0 0 0 100px white inset !important",
-                  WebkitTextFillColor: "#222 !important",
-                  backgroundColor: "white !important",
-                  color: "#222 !important"
-                }
+                '& input:-webkit-autofill': {
+                  '-webkit-background-clip': 'text',
+                  '-webkit-text-fill-color': theme.palette.mode === 'dark' ? '#fff' : '#000',
+                  'transition': 'background-color 5000s ease-in-out 0s',
+                  'box-shadow': 'none',
+                  'background-color': 'transparent !important',
+                },
               }}
-              value={formik.values.password}
-              onChange={formik.handleChange}
-              error={formik.touched.password && Boolean(formik.errors.password)}
-              helperText={formik.touched.password && formik.errors.password}
             />
 
             <Box sx={{ 
@@ -299,12 +346,12 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
                   <Checkbox
                     id="rememberMe"
                     name="rememberMe"
-                    color="primary"
                     checked={formik.values.rememberMe}
                     onChange={formik.handleChange}
+                    color="primary"
                   />
                 }
-                label="Recordarme"
+                label="Recordar mi email"
               />
               <Typography 
                 variant="body2" 
@@ -321,13 +368,17 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               variant="contained"
               size="large"
               disabled={isLoading}
-              sx={{ 
+              sx={{
+                mt: 2,
                 py: 1.5,
-                fontWeight: 'bold',
-                boxShadow: '0px 4px 12px rgba(30, 96, 250, 0.2)',
+                bgcolor: theme.palette.primary.main,
+                color: theme.palette.primary.contrastText,
+                '&:hover': {
+                  bgcolor: theme.palette.primary.dark,
+                },
               }}
             >
-              {isLoading ? 'Iniciando Sesión...' : 'Iniciar Sesión'}
+              {isLoading ? 'Iniciando sesión...' : 'Iniciar Sesión'}
             </Button>
           </form>          {/* Sección de login externo eliminada */}
 

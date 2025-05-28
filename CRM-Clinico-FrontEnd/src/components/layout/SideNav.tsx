@@ -18,7 +18,6 @@ import {
   People as PeopleIcon,
   HealthAndSafety as HealthIcon,
   MedicalServices as DentistIcon,
-  Receipt as ReceiptIcon,
   Settings as SettingsIcon,
   Help as HelpIcon,
   Assignment as AssignmentIcon
@@ -45,7 +44,6 @@ const SideNav: React.FC<SideNavProps> = ({ open, drawerWidth, onClose }) => {
     { text: 'Dentistas', icon: <DentistIcon />, path: '/dentistas' },
     { text: 'Servicios', icon: <HealthIcon />, path: '/services' },
     { text: 'Tareas y Notas', icon: <AssignmentIcon />, path: '/tasks' },
-    { text: 'Facturación', icon: <ReceiptIcon />, path: '/billing' },
   ];
   
   const bottomMenuItems = [

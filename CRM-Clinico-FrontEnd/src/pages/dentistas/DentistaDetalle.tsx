@@ -35,7 +35,9 @@ import {
   Edit as EditIcon,
   ArrowBack as ArrowBackIcon,
 } from '@mui/icons-material';
-import { dentistaService, type Dentista } from '../../services/dentistaService';
+import dentistaService from '../../services/dentistaService';
+import type { Dentista } from '../../services/dentistaService';
+import { UserAvatar } from '../../components/common/UserAvatar';
 
 const DentistaDetalle = () => {
   const { id } = useParams<{ id: string }>();
@@ -177,13 +179,11 @@ const DentistaDetalle = () => {
       <Paper sx={{ p: 3, mb: 3 }}>
         <Box sx={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 3 }}>
           {/* Avatar y datos principales */}
-          <Avatar
-            src={dentista.fotoPerfil}
-            alt={dentista.usuario?.nombre}
-            sx={{ width: 120, height: 120, fontSize: '3rem' }}
-          >
-            {dentista.usuario?.nombre?.charAt(0)}
-          </Avatar>
+          <UserAvatar
+            avatarPath={dentista.usuario?.settings?.avatar}
+            userName={dentista.usuario?.nombre}
+            sx={{ width: 120, height: 120, mr: 3 }}
+          />
 
           <Box sx={{ flexGrow: 1 }}>
             <Box sx={{ display: 'flex', alignItems: 'center', mb: 1, gap: 2, flexWrap: 'wrap' }}>

@@ -9,9 +9,10 @@ const uploadsDir = path.join(__dirname, '../../uploads');
 const medicalRecordsDir = path.join(uploadsDir, 'medical-records');
 const xraysDir = path.join(uploadsDir, 'xrays');
 const documentsDir = path.join(uploadsDir, 'documents');
+const avatarsDir = path.join(uploadsDir, 'avatars');
 
 // Asegurar que los directorios existan
-[uploadsDir, medicalRecordsDir, xraysDir, documentsDir].forEach(dir => {
+[uploadsDir, medicalRecordsDir, xraysDir, documentsDir, avatarsDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -50,6 +51,17 @@ const documentsStorage = multer.diskStorage({
   }
 });
 
+// Configure storage for avatars
+const avatarStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, avatarsDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueFilename = `avatar-${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueFilename);
+  }
+});
+
 // File filter for allowed document types
 const documentFilter = (req, file, cb) => {
   const allowedTypes = [
@@ -83,6 +95,21 @@ const xrayFilter = (req, file, cb) => {
   }
 };
 
+// File filter for avatars
+const avatarFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'image/jpeg',
+    'image/png',
+    'image/gif'
+  ];
+  
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new AppError('Tipo de archivo no permitido. Solo se permiten JPG, PNG y GIF', 400), false);
+  }
+};
+
 // Configure multer instances
 const uploadMedicalRecord = multer({
   storage: medicalRecordsStorage,
@@ -108,6 +135,15 @@ const uploadDocument = multer({
   }
 });
 
+// Configure multer for avatars
+const uploadAvatar = multer({
+  storage: avatarStorage,
+  fileFilter: avatarFilter,
+  limits: {
+    fileSize: 5 * 1024 * 1024 // 5MB
+  }
+});
+
 // Error handler for multer
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
@@ -123,5 +159,6 @@ module.exports = {
   uploadMedicalRecord,
   uploadXray,
   uploadDocument,
+  uploadAvatar,
   handleMulterError
 };

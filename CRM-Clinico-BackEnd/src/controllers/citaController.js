@@ -36,10 +36,13 @@ class CitaController {
 
       // Verificar disponibilidad del dentista (horario)
       const fechaCita = new Date(fechaHora);
-      const horaInicio = fechaCita.getHours() + (fechaCita.getMinutes() / 60);
       
-      // Obtener el día de la semana (0 = domingo, 1 = lunes, ..., 6 = sábado)
-      const diaSemana = fechaCita.getDay();
+      // Convertir la hora UTC a hora local
+      const offsetHoras = new Date().getTimezoneOffset() / 60; // Offset en horas
+      const horaLocal = fechaCita.getUTCHours() + (fechaCita.getUTCMinutes() / 60) - offsetHoras;
+      
+      // Obtener el día de la semana basado en UTC para mantener consistencia con la fecha
+      const diaSemana = fechaCita.getUTCDay();
       const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
       const diaTexto = diasSemana[diaSemana];
       
@@ -48,11 +51,21 @@ class CitaController {
         const disponible = dentista.horarioTrabajo[diaTexto].some(rango => {
           const inicio = parseFloat(rango.inicio);
           const fin = parseFloat(rango.fin);
-          return horaInicio >= inicio && horaInicio < fin;
+          return horaLocal >= inicio && horaLocal < fin;
         });
         
         if (!disponible) {
-          return next(new BadRequestError(`El dentista no está disponible en el horario seleccionado`));
+          // Calcular los horarios UTC equivalentes para el horario del dentista
+          const inicioUTC = parseFloat(dentista.horarioTrabajo[diaTexto][0].inicio) + offsetHoras;
+          const finUTC = parseFloat(dentista.horarioTrabajo[diaTexto][0].fin) + offsetHoras;
+          
+          return next(new BadRequestError(
+            `El dentista no está disponible en el horario seleccionado.\n` +
+            `La hora ${fechaCita.getUTCHours()}:${fechaCita.getUTCMinutes().toString().padStart(2, '0')} UTC ` +
+            `(${Math.floor(horaLocal)}:${Math.round((horaLocal % 1) * 60).toString().padStart(2, '0')} hora local) ` +
+            `está fuera del horario del dentista: ${dentista.horarioTrabajo[diaTexto][0].inicio} - ${dentista.horarioTrabajo[diaTexto][0].fin}\n` +
+            `Para este horario del dentista, debe programar citas entre las ${Math.floor(inicioUTC)}:${Math.round((inicioUTC % 1) * 60).toString().padStart(2, '0')} UTC y ${Math.floor(finUTC)}:${Math.round((finUTC % 1) * 60).toString().padStart(2, '0')} UTC`
+          ));
         }
       } else {
         // Si no hay horario definido para ese día, el dentista no trabaja
@@ -66,24 +79,9 @@ class CitaController {
       const citasConflicto = await db.Cita.findOne({
         where: {
           dentistaId,
-          [db.Sequelize.Op.or]: [
-            // Nueva cita comienza durante una existente
-            {
-              fechaHora: {
-                [db.Sequelize.Op.lt]: fechaFinCita
-              },
-              [db.Sequelize.Op.and]: [
-                db.Sequelize.literal(`DATE_ADD(fechaHora, INTERVAL duracion MINUTE) > '${fechaCita.toISOString()}'`)
-              ]
-            },
-            // Nueva cita termina durante una existente
-            {
-              fechaHora: {
-                [db.Sequelize.Op.gt]: fechaCita,
-                [db.Sequelize.Op.lt]: fechaFinCita
-              }
-            }
-          ],
+          fechaHora: {
+            [db.Sequelize.Op.between]: [fechaCita, fechaFinCita]
+          },
           estado: {
             [db.Sequelize.Op.notIn]: ['cancelada']
           }
@@ -457,6 +455,119 @@ class CitaController {
       });
     } catch (error) {
       logger.error(`Error al obtener disponibilidad: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Actualizar fecha y hora de una cita
+   */
+  static async actualizarFechaHoraCita(req, res, next) {
+    try {
+      const { id } = req.params;
+      const { fechaHora, duracion } = req.body;
+
+      // Buscar la cita
+      const cita = await db.Cita.findByPk(id, {
+        include: [
+          { model: db.Dentista, as: 'dentista' },
+          { model: db.Servicio, as: 'servicio' }
+        ]
+      });
+
+      if (!cita) {
+        return next(new NotFoundError(`No existe una cita con ID: ${id}`));
+      }
+
+      // Verificar disponibilidad del dentista (horario)
+      const fechaCita = new Date(fechaHora);
+      
+      // Convertir la hora UTC a hora local
+      const offsetHoras = new Date().getTimezoneOffset() / 60;
+      const horaLocal = fechaCita.getUTCHours() + (fechaCita.getUTCMinutes() / 60) - offsetHoras;
+      
+      // Obtener el día de la semana basado en UTC
+      const diaSemana = fechaCita.getUTCDay();
+      const diasSemana = ['domingo', 'lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado'];
+      const diaTexto = diasSemana[diaSemana];
+      
+      // Validar horario de trabajo del dentista
+      if (cita.dentista.horarioTrabajo && cita.dentista.horarioTrabajo[diaTexto]) {
+        const disponible = cita.dentista.horarioTrabajo[diaTexto].some(rango => {
+          const inicio = parseFloat(rango.inicio);
+          const fin = parseFloat(rango.fin);
+          return horaLocal >= inicio && horaLocal < fin;
+        });
+        
+        if (!disponible) {
+          const inicioUTC = parseFloat(cita.dentista.horarioTrabajo[diaTexto][0].inicio) + offsetHoras;
+          const finUTC = parseFloat(cita.dentista.horarioTrabajo[diaTexto][0].fin) + offsetHoras;
+          
+          return next(new BadRequestError(
+            `El dentista no está disponible en el horario seleccionado.\n` +
+            `La hora ${fechaCita.getUTCHours()}:${fechaCita.getUTCMinutes().toString().padStart(2, '0')} UTC ` +
+            `(${Math.floor(horaLocal)}:${Math.round((horaLocal % 1) * 60).toString().padStart(2, '0')} hora local) ` +
+            `está fuera del horario del dentista: ${cita.dentista.horarioTrabajo[diaTexto][0].inicio} - ${cita.dentista.horarioTrabajo[diaTexto][0].fin}\n` +
+            `Para este horario del dentista, debe programar citas entre las ${Math.floor(inicioUTC)}:${Math.round((inicioUTC % 1) * 60).toString().padStart(2, '0')} UTC y ${Math.floor(finUTC)}:${Math.round((finUTC % 1) * 60).toString().padStart(2, '0')} UTC`
+          ));
+        }
+      } else {
+        return next(new BadRequestError(`El dentista no trabaja los ${diaTexto}`));
+      }
+
+      // Verificar conflictos con otras citas
+      const duracionActualizada = duracion || cita.duracion;
+      const fechaFinCita = new Date(fechaCita.getTime() + duracionActualizada * 60000);
+      
+      const citasConflicto = await db.Cita.findOne({
+        where: {
+          id: { [db.Sequelize.Op.ne]: id }, // Excluir la cita actual
+          dentistaId: cita.dentistaId,
+          fechaHora: {
+            [db.Sequelize.Op.between]: [fechaCita, fechaFinCita]
+          },
+          estado: {
+            [db.Sequelize.Op.notIn]: ['cancelada']
+          }
+        }
+      });
+      
+      if (citasConflicto) {
+        return next(new ValidationError(`Ya existe una cita programada en ese horario`));
+      }
+
+      // Actualizar la cita
+      await cita.update({
+        fechaHora,
+        ...(duracion && { duracion })
+      });
+
+      // Obtener la cita actualizada con todas sus relaciones
+      const citaActualizada = await db.Cita.findByPk(id, {
+        include: [
+          { 
+            model: db.Cliente, 
+            as: 'cliente',
+            include: { model: db.Usuario, as: 'usuario', attributes: ['id', 'nombre', 'email', 'telefono'] }
+          },
+          { 
+            model: db.Dentista, 
+            as: 'dentista',
+            include: { model: db.Usuario, as: 'usuario', attributes: ['id', 'nombre', 'email', 'telefono'] }
+          },
+          { model: db.Servicio, as: 'servicio' }
+        ]
+      });
+
+      // Enviar notificación
+      await NotificacionService.notificarCita(citaActualizada, 'actualizar');
+
+      res.json({
+        status: 'success',
+        data: citaActualizada
+      });
+    } catch (error) {
+      logger.error(`Error al actualizar fecha de cita: ${error}`);
       next(error);
     }
   }

@@ -63,15 +63,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         return false;
       }
       
+      // Obtener datos del usuario
       const userData = await authService.getCurrentUser();
       setUser(userData);
-      setSettings(userData.settings || null);
+
+      // Obtener settings del usuario
+      try {
+        const userSettings = await authService.fetchUserSettings();
+        setSettings(userSettings);
+      } catch (error) {
+        console.error('Error al cargar settings:', error);
+        // No interrumpimos el flujo si fallan los settings
+      }
+
       setIsAuthenticated(true);
       return true;
     } catch (error) {
       if (error instanceof AuthError) {
         if (error.statusCode === 401) {
-          // Token inválido o expirado
           authService.logout();
         }
         throw error;
@@ -84,16 +93,21 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     try {
       const response = await authService.login({ email, password, rememberMe });
       setUser(response.user);
-      setSettings(response.user.settings || null);
+      
+      // Cargar settings después del login
+      try {
+        const userSettings = await authService.fetchUserSettings();
+        setSettings(userSettings);
+      } catch (error) {
+        console.error('Error al cargar settings después del login:', error);
+      }
+
       setIsAuthenticated(true);
       addNotification('Inicio de sesión exitoso', 'success');
     } catch (error) {
       if (error instanceof AuthError) {
-        // Mostrar mensaje específico según el tipo de error
         addNotification(error.message, 'error');
-        
         if (error.code === 'RATE_LIMIT_EXCEEDED') {
-          // Podríamos implementar un contador aquí si queremos
           addNotification('Por favor, espera antes de intentar nuevamente', 'warning');
         }
       } else {

@@ -1,5 +1,5 @@
 const { AppError } = require('../utils/errors');
-const { Cliente } = require('../models');
+const { Cliente, Documento } = require('../models');
 const { logger } = require('../utils/logger');
 const path = require('path');
 
@@ -12,17 +12,20 @@ class DocumentoController {
       const { clienteId } = req.params;
       
       // Verificar que el cliente existe
-      const cliente = await Cliente.findByPk(clienteId);
+      const cliente = await Cliente.findByPk(clienteId, {
+        include: [{
+          model: Documento,
+          as: 'documentos'
+        }]
+      });
+
       if (!cliente) {
         throw new AppError('Cliente no encontrado', 404);
       }
 
-      // Obtener documentos del cliente desde la base de datos
-      const documentos = await cliente.getDocumentos();
-
       res.status(200).json({
         status: 'success',
-        data: documentos.map(doc => ({
+        data: cliente.documentos.map(doc => ({
           id: doc.id,
           clienteId: doc.clienteId,
           nombre: doc.nombre,
@@ -33,8 +36,12 @@ class DocumentoController {
         }))
       });
     } catch (error) {
-      logger.error(`Error al obtener documentos del cliente: ${error}`);
-      next(error);
+      logger.error(`Error al obtener documentos del cliente: ${error.message}`);
+      if (error instanceof AppError) {
+        next(error);
+      } else {
+        next(new AppError('Error al obtener documentos del cliente', 500));
+      }
     }
   }
 
@@ -57,7 +64,8 @@ class DocumentoController {
       }
 
       // Crear el documento en la base de datos
-      const documento = await cliente.createDocumento({
+      const documento = await Documento.create({
+        clienteId: cliente.id,
         nombre: req.body.nombre || file.originalname,
         tipo: req.body.tipo || path.extname(file.originalname).substring(1),
         tamano: file.size,
@@ -77,8 +85,12 @@ class DocumentoController {
         }
       });
     } catch (error) {
-      logger.error(`Error al subir documento: ${error}`);
-      next(error);
+      logger.error(`Error al subir documento: ${error.message}`);
+      if (error instanceof AppError) {
+        next(error);
+      } else {
+        next(new AppError('Error al subir el documento', 500));
+      }
     }
   }
 
@@ -102,8 +114,12 @@ class DocumentoController {
         message: 'Documento eliminado correctamente'
       });
     } catch (error) {
-      logger.error(`Error al eliminar documento: ${error}`);
-      next(error);
+      logger.error(`Error al eliminar documento: ${error.message}`);
+      if (error instanceof AppError) {
+        next(error);
+      } else {
+        next(new AppError('Error al eliminar el documento', 500));
+      }
     }
   }
 }

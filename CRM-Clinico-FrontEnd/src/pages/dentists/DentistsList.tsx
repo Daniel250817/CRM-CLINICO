@@ -37,7 +37,6 @@ import {
   CloudDownload as CloudDownloadIcon,
   Edit as EditIcon,
   Delete as DeleteIcon,
-  CalendarToday as CalendarIcon,
   MedicalServices as MedicalServicesIcon,
   MoreVert as MoreVertIcon,
   Star as StarIcon
@@ -173,11 +172,6 @@ const DentistsList = () => {
   const handleMenuClose = () => {
     setAnchorEl(null);
     setSelectedDentistId(null);
-  };
-
-  const handleViewSchedule = () => {
-    // Lógica para ver agenda
-    handleMenuClose();
   };
 
   const handleEditDentist = () => {
@@ -387,7 +381,6 @@ const DentistsList = () => {
                     <TableCell>
                       <Box sx={{ display: 'flex', alignItems: 'center' }}>
                         <Chip 
-                          icon={<CalendarIcon />}
                           label={dentist.appointmentsToday}
                           color={
                             dentist.appointmentsToday > 7 ? 'error' :
@@ -456,12 +449,6 @@ const DentistsList = () => {
         transformOrigin={{ horizontal: 'right', vertical: 'top' }}
         anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       >
-        <MenuItem onClick={handleViewSchedule}>
-          <ListItemIcon>
-            <CalendarIcon fontSize="small" />
-          </ListItemIcon>
-          <ListItemText>Ver Agenda</ListItemText>
-        </MenuItem>
         <MenuItem onClick={() => handleMenuClose()}>
           <ListItemIcon>
             <MedicalServicesIcon fontSize="small" />

@@ -30,21 +30,18 @@
   overflow-y: auto;
 }
 
-/* Estilos personalizados para el calendario */
+/* Estilos base del calendario */
 .fc {
   --fc-border-color: #e5e7eb;
   --fc-today-bg-color: #f3f8ff;
-  --fc-event-bg-color: #3b82f6;
-  --fc-event-border-color: #3b82f6;
-  --fc-event-text-color: #fff;
   --fc-neutral-bg-color: #fff;
+  font-family: system-ui, -apple-system, sans-serif;
 }
 
 /* Modo oscuro */
 [data-theme='dark'] .fc {
   --fc-border-color: #374151;
   --fc-today-bg-color: rgba(59, 130, 246, 0.1);
-  --fc-neutral-bg-color: #1F2937;
   --fc-page-bg-color: #111827;
   color: #F9FAFB;
 }
@@ -52,11 +49,13 @@
 /* Cabecera de días */
 .fc th {
   padding: 12px 0;
-  text-transform: capitalize;
+  text-transform: uppercase;
   font-weight: 600;
-  font-size: 0.875rem;
+  font-size: 0.75rem;
+  letter-spacing: 0.05em;
   color: #4b5563;
   background-color: #f9fafb;
+  border-bottom: 2px solid var(--fc-border-color);
 }
 
 /* Modo oscuro - cabecera de días */
@@ -75,121 +74,148 @@
   background-color: var(--fc-neutral-bg-color);
 }
 
-/* Eventos */
+/* Eventos del calendario */
 .fc-event {
-  border-radius: 6px;
-  padding: 2px 4px;
-  font-size: 0.875rem;
-  border: none;
-  margin: 1px 2px;
-  cursor: pointer;
-  transition: transform 0.2s ease;
+  border: none !important;
+  background: none !important;
+  margin: 0 !important;
+  padding: 0 !important;
 }
 
-.fc-event:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-}
-
-/* Botones de navegación */
-.fc .fc-button-primary {
-  background-color: #fff;
-  border-color: #e5e7eb;
-  color: #374151;
-  text-transform: capitalize;
-  font-weight: 500;
-  padding: 6px 12px;
-  transition: all 0.2s ease;
-}
-
-/* Modo oscuro - botones de navegación */
-[data-theme='dark'] .fc .fc-button-primary {
-  background-color: #374151;
-  border-color: #4B5563;
-  color: #F9FAFB;
-}
-
-.fc .fc-button-primary:hover {
-  background-color: #f9fafb;
-  border-color: #d1d5db;
-  color: #111827;
-}
-
-/* Modo oscuro - hover en botones */
-[data-theme='dark'] .fc .fc-button-primary:hover {
-  background-color: #4B5563;
-  border-color: #6B7280;
-  color: #F9FAFB;
-}
-
-.fc .fc-button-primary:not(:disabled).fc-button-active,
-.fc .fc-button-primary:not(:disabled):active {
-  background-color: #3b82f6;
-  border-color: #3b82f6;
-  color: #fff;
-}
-
-/* Estilos para el día actual */
-.fc .fc-day-today {
-  background-color: var(--fc-today-bg-color) !important;
-  font-weight: bold;
-}
-
-/* Números de día */
-.fc .fc-daygrid-day-number {
+/* Contenedor principal del evento */
+.appointment-card {
   padding: 8px;
+  height: 100%;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 12px;
+  border: 1px solid rgba(0, 0, 0, 0.1);
+}
+
+/* Estados de las citas */
+.event-pendiente .appointment-card {
+  background-color: #FFFBE9;
+}
+
+.event-confirmada .appointment-card {
+  background-color: #E8F5E9;
+}
+
+.event-completada .appointment-card {
+  background-color: #E3F2FD;
+}
+
+.event-cancelada .appointment-card {
+  background-color: #FFEBEE;
+  opacity: 0.8;
+}
+
+/* Tiempo de la cita */
+.appointment-time {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+  font-size: 12px;
+}
+
+.appointment-time-label {
+  color: #666;
+  font-size: 12px;
+}
+
+/* Título de la cita */
+.appointment-title {
   font-weight: 500;
-  color: #374151;
+  color: #000;
+  font-size: 13px;
+  line-height: 1.2;
 }
 
-/* Modo oscuro - números de día */
-[data-theme='dark'] .fc .fc-daygrid-day-number {
-  color: #D1D5DB;
+/* Información del paciente */
+.appointment-patient {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #666;
+  font-size: 12px;
 }
 
-/* Vista de tiempo */
-.fc .fc-timegrid-slot {
-  height: 3rem;
+/* Estado de la cita */
+.appointment-status {
+  font-size: 12px;
+  color: #666;
 }
 
-.fc .fc-timegrid-slot-label {
+/* Vista de mes - eventos más compactos */
+.fc-dayGridMonth-view .appointment-card {
+  min-height: 20px;
+  padding: 4px;
+  gap: 2px;
+}
+
+/* Ajustes para vista de semana/día */
+.fc-timegrid-event {
+  background: none !important;
+  border: none !important;
+}
+
+/* Quitar bordes del calendario */
+.fc-timegrid-slot {
+  border-bottom: 1px solid #eee !important;
+}
+
+.fc td, .fc th {
+  border-color: #eee !important;
+}
+
+/* Indicador de tiempo actual */
+.fc .fc-timegrid-now-indicator-line {
+  border-color: #10b981;
+  border-width: 1px;
+}
+
+.fc .fc-timegrid-now-indicator-arrow {
+  border-color: #10b981;
+  border-width: 4px;
+}
+
+/* Animaciones */
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.fc-event {
+  animation: fadeIn 0.3s ease-out;
+}
+
+/* Estilos para eventos más largos */
+.fc-event.fc-event-start {
+  border-top-left-radius: 12px !important;
+  border-bottom-left-radius: 12px !important;
+}
+
+.fc-event.fc-event-end {
+  border-top-right-radius: 12px !important;
+  border-bottom-right-radius: 12px !important;
+}
+
+/* Tooltip personalizado */
+.fc-event:hover:after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0, 0, 0, 0.8);
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
   font-size: 0.75rem;
-  color: #6b7280;
-}
-
-/* Modo oscuro - etiquetas de tiempo */
-[data-theme='dark'] .fc .fc-timegrid-slot-label {
-  color: #9CA3AF;
-}
-
-/* Estados de eventos */
-.event-confirmed {
-  background-color: #10b981 !important;
-  border-color: #10b981 !important;
-}
-
-.event-pending {
-  background-color: #f59e0b !important;
-  border-color: #f59e0b !important;
-}
-
-.event-completed {
-  background-color: #6366f1 !important;
-  border-color: #6366f1 !important;
-}
-
-.event-cancelled {
-  background-color: #ef4444 !important;
-  border-color: #ef4444 !important;
-  text-decoration: line-through;
-}
-
-/* Hover en celdas */
-.fc td:hover {
-  background-color: #f8fafc;
-}
-
-/* Modo oscuro - hover en celdas */
-[data-theme='dark'] .fc td:hover {
-  background-color: #2D3748;
+  white-space: nowrap;
+  z-index: 1000;
+  pointer-events: none;
 } 

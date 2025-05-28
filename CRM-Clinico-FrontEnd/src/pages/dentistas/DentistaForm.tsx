@@ -39,7 +39,7 @@ import {
   Delete as DeleteIcon,
   Add as AddIcon
 } from '@mui/icons-material';
-import { dentistaService } from '../../services/dentistaService';
+import dentistaService from '../../services/dentistaService';
 import type { Dentista, DentistaCreacionDatos } from '../../services/dentistaService';
 import { usuarioService } from '../../services/usuarioService';
 import type { Usuario } from '../../services/usuarioService';

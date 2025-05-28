@@ -42,21 +42,69 @@ const authSchemas = {
  * Esquemas de validación para Clientes
  */
 const clienteSchemas = {
-  // Esquema para crear/actualizar cliente
+  // Esquema para crear cliente
   crearCliente: z.object({
     usuario: z.object({
-      nombre: z.string().min(2, 'El nombre debe tener al menos 2 caracteres'),
-      apellidos: z.string().min(2, 'Los apellidos deben tener al menos 2 caracteres'),
-      email: z.string().email('Email inválido'),
-      telefono: z.string().min(6, 'El teléfono debe tener al menos 6 caracteres'),
-      fechaNacimiento: z.string().nullable().optional(),
-      genero: z.enum(['masculino', 'femenino', 'otro', 'prefiero no decir', 'no_especificado']).nullable().optional()
+      nombre: z.string()
+        .min(2, 'El nombre debe tener al menos 2 caracteres')
+        .max(100, 'El nombre no puede tener más de 100 caracteres')
+        .trim(),
+      apellidos: z.string()
+        .min(2, 'Los apellidos deben tener al menos 2 caracteres')
+        .max(100, 'Los apellidos no pueden tener más de 100 caracteres')
+        .trim(),
+      email: z.string()
+        .email('Email inválido')
+        .trim()
+        .toLowerCase(),
+      telefono: z.string()
+        .min(6, 'El teléfono debe tener al menos 6 caracteres')
+        .max(20, 'El teléfono no puede tener más de 20 caracteres')
+        .regex(/^[0-9+\-\s]+$/, 'El teléfono solo puede contener números, +, - y espacios')
+        .trim(),
+      fechaNacimiento: z.string()
+        .nullable()
+        .optional()
+        .refine(val => !val || !isNaN(Date.parse(val)), {
+          message: 'Formato de fecha inválido'
+        }),
+      genero: z.enum(['masculino', 'femenino', 'otro', 'prefiero no decir', 'no_especificado'])
+    })
+  }),
+
+  // Esquema para actualizar cliente
+  actualizarCliente: z.object({
+    usuario: z.object({
+      nombre: z.string()
+        .min(2, 'El nombre debe tener al menos 2 caracteres')
+        .max(100, 'El nombre no puede tener más de 100 caracteres')
+        .trim(),
+      apellidos: z.string()
+        .min(2, 'Los apellidos deben tener al menos 2 caracteres')
+        .max(100, 'Los apellidos no pueden tener más de 100 caracteres')
+        .trim(),
+      email: z.string()
+        .email('Email inválido')
+        .trim()
+        .toLowerCase(),
+      telefono: z.string()
+        .min(6, 'El teléfono debe tener al menos 6 caracteres')
+        .max(20, 'El teléfono no puede tener más de 20 caracteres')
+        .regex(/^[0-9+\-\s]+$/, 'El teléfono solo puede contener números, +, - y espacios')
+        .trim(),
+      fechaNacimiento: z.string()
+        .nullable()
+        .optional()
+        .refine(val => !val || !isNaN(Date.parse(val)), {
+          message: 'Formato de fecha inválido'
+        }),
+      genero: z.enum(['masculino', 'femenino', 'otro', 'prefiero no decir', 'no_especificado'])
     }),
     direccion: z.string().nullable().optional(),
     ciudad: z.string().nullable().optional(),
     codigoPostal: z.string().nullable().optional(),
     ocupacion: z.string().nullable().optional(),
-    estadoCivil: z.enum(['soltero', 'casado', 'divorciado', 'viudo']).nullable().optional(),
+    estadoCivil: z.string().nullable().optional(),
     contactoEmergencia: z.object({
       nombre: z.string(),
       telefono: z.string(),
@@ -87,8 +135,7 @@ const dentistaSchemas = {
     titulo: z.string().optional(),
     numeroColegiado: z.string().optional(),
     añosExperiencia: z.number().int().min(0).optional(),
-    biografia: z.string().optional(),
-    fotoPerfil: z.string().optional()
+    biografia: z.string().optional()
   })
 };
 
@@ -175,7 +222,53 @@ const userSettingsSchemas = {
     notificationEmail: z.boolean().optional(),
     notificationApp: z.boolean().optional(),
     notificationSMS: z.boolean().optional(),
-    avatar: z.string().url('URL inválida').optional().nullable()
+    avatar: z.string().optional().nullable()
+  })
+};
+
+/**
+ * Esquemas de validación para Tratamientos
+ */
+const tratamientoSchemas = {
+  crearTratamiento: z.object({
+    nombre: z.string()
+      .min(2, 'El nombre debe tener al menos 2 caracteres')
+      .max(100, 'El nombre no puede tener más de 100 caracteres'),
+    descripcion: z.string()
+      .max(500, 'La descripción no puede tener más de 500 caracteres')
+      .optional(),
+    fechaInicio: z.string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato YYYY-MM-DD'),
+    dentistaId: z.number()
+      .int('El ID del dentista debe ser un número entero')
+      .positive('El ID del dentista debe ser positivo'),
+    sesionesTotales: z.number()
+      .int('El número de sesiones debe ser un número entero')
+      .min(1, 'Debe haber al menos una sesión')
+      .max(100, 'No puede haber más de 100 sesiones'),
+    notas: z.string()
+      .max(1000, 'Las notas no pueden tener más de 1000 caracteres')
+      .optional()
+  }),
+
+  actualizarTratamiento: z.object({
+    progreso: z.number()
+      .int('El progreso debe ser un número entero')
+      .min(0, 'El progreso no puede ser menor a 0')
+      .max(100, 'El progreso no puede ser mayor a 100')
+      .optional(),
+    sesionesCompletadas: z.number()
+      .int('El número de sesiones completadas debe ser un número entero')
+      .min(0, 'El número de sesiones completadas no puede ser menor a 0')
+      .optional(),
+    estado: z.enum(['activo', 'completado', 'cancelado'])
+      .optional(),
+    notas: z.string()
+      .max(1000, 'Las notas no pueden tener más de 1000 caracteres')
+      .optional(),
+    fechaFin: z.string()
+      .regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato YYYY-MM-DD')
+      .optional()
   })
 };
 
@@ -186,5 +279,6 @@ module.exports = {
   citaSchemas,
   tareaSchemas,
   servicioSchemas,
-  userSettingsSchemas
+  userSettingsSchemas,
+  tratamientoSchemas
 };
