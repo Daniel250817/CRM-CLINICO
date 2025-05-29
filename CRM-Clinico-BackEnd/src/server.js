@@ -24,6 +24,7 @@ const notificacionRoutes = require('./routes/notificacionRoutes');
 const dashboardRoutes = require('./routes/dashboardRoutes');
 const seguimientoRoutes = require('./routes/seguimientoRoutes');
 const userSettingsRoutes = require('./routes/userSettingsRoutes');
+const facturaRoutes = require('./routes/facturaRoutes');
 
 // Inicializar la aplicación
 const app = express();
@@ -64,6 +65,7 @@ app.use(rateLimiter);
 // Rutas API
 app.use('/api/auth', authRoutes);
 app.use('/api/usuarios', usuarioRoutes);
+app.use('/api/users', usuarioRoutes); // Alias para compatibilidad con frontend
 app.use('/api/clientes', clienteRoutes);
 app.use('/api/dentistas', dentistaRoutes);
 app.use('/api/citas', citaRoutes);
@@ -73,6 +75,7 @@ app.use('/api/notificaciones', notificacionRoutes);
 app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/seguimiento', seguimientoRoutes);
 app.use('/api/settings', userSettingsRoutes);
+app.use('/api/facturas', facturaRoutes);
 
 // Servir archivos estáticos con las cabeceras correctas
 app.use('/uploads', (req, res, next) => {

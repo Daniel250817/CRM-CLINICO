@@ -20,7 +20,8 @@ import {
   MedicalServices as DentistIcon,
   Settings as SettingsIcon,
   Help as HelpIcon,
-  Assignment as AssignmentIcon
+  Assignment as AssignmentIcon,
+  Receipt as ReceiptIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -36,14 +37,14 @@ const SideNav: React.FC<SideNavProps> = ({ open, drawerWidth, onClose }) => {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { user } = useAuth();
-  const menuItems = [
+  const { user } = useAuth();  const menuItems = [
     { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
     { text: 'Citas', icon: <CalendarIcon />, path: '/appointments/calendar' },
     { text: 'Pacientes', icon: <PeopleIcon />, path: '/patients/list' },
     { text: 'Dentistas', icon: <DentistIcon />, path: '/dentistas' },
     { text: 'Servicios', icon: <HealthIcon />, path: '/services' },
     { text: 'Tareas y Notas', icon: <AssignmentIcon />, path: '/tasks' },
+    { text: 'Facturación', icon: <ReceiptIcon />, path: '/billing' },
   ];
   
   const bottomMenuItems = [

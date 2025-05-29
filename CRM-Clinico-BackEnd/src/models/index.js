@@ -21,8 +21,15 @@ fs
     );
   })
   .forEach(file => {
-    const model = require(path.join(__dirname, file))(sequelize);
-    db[model.name] = model;
+    const model = require(path.join(__dirname, file));
+    // Si el modelo es una función, ejecutarla con sequelize
+    if (typeof model === 'function') {
+      const modelInstance = model(sequelize);
+      db[modelInstance.name] = modelInstance;
+    } else {
+      // Si ya es una instancia del modelo (como Factura.js)
+      db[model.name] = model;
+    }
   });
 
 // Establecer las asociaciones entre modelos

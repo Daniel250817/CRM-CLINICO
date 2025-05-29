@@ -12,7 +12,6 @@ import { AuthProvider, useAuth } from './contexts/AuthContext';
 // Components
 import NotificationSystem from './components/common/NotificationSystem';
 import MainLayout from './components/layout/MainLayout';
-import RoleBasedRoute from './components/auth/RoleBasedRoute';
 
 // Auth Pages
 import Login from './pages/auth/Login';
@@ -27,6 +26,7 @@ import PatientsList from './pages/patients/PatientsList';
 import UserSettings from './pages/settings/UserSettings';
 import TaskBoard from './pages/tasks/TaskBoard';
 import ServiciosList from './pages/services/ServiciosList';
+import BillingPage from './pages/billing/BillingPage';
 
 // Dentistas Pages
 import DentistasPage from './pages/dentistas/index';
@@ -214,8 +214,7 @@ function AppRoutes() {
           />
         </Route>
 
-        {/* Tasks Routes */}
-        <Route path="/tasks">
+        {/* Tasks Routes */}        <Route path="/tasks">
           <Route
             index
             element={
@@ -237,6 +236,30 @@ function AppRoutes() {
             element={
               <MainLayout onLogout={logout}>
                 <TaskBoard />
+              </MainLayout>
+            }
+          />
+        </Route>
+
+        {/* Billing Routes */}
+        <Route path="/billing">
+          <Route
+            index
+            element={
+              <MainLayout onLogout={logout}>
+                <BillingPage />
+              </MainLayout>
+            }
+          />
+        </Route>
+
+        {/* Alternative Spanish route for Billing */}
+        <Route path="/facturacion">
+          <Route
+            index
+            element={
+              <MainLayout onLogout={logout}>
+                <BillingPage />
               </MainLayout>
             }
           />

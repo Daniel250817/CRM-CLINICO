@@ -37,7 +37,8 @@ import {
   Edit as EditIcon,
   History as HistoryIcon,
   Close as CloseIcon,
-  Save as SaveIcon
+  Save as SaveIcon,
+  Delete as DeleteIcon
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -195,12 +196,22 @@ const AppointmentCalendar = () => {
   // Añadir un estado para el diálogo de horarios
   const [horariosDentistaSeleccionado, setHorariosDentistaSeleccionado] = useState<HorariosDentistaSeleccionado | null>(null);
 
+  // Añadir nuevos estados para la edición y eliminación de citas
+  const [openEditAppointment, setOpenEditAppointment] = useState(false);
+  const [openDeleteConfirm, setOpenDeleteConfirm] = useState(false);
+  const [selectedAppointmentId, setSelectedAppointmentId] = useState<string | null>(null);
+
+  // Añadir nuevos estados para el diálogo de selección manual de paciente
+  const [openPatientSelector, setOpenPatientSelector] = useState(false);
+  const [tempAppointmentData, setTempAppointmentData] = useState<any>(null);
+
   // Cargar pacientes
   useEffect(() => {
     const cargarPacientes = async () => {
       try {
         setLoadingPatients(true);
         const data = await clienteService.obtenerTodosLosClientes();
+        console.log('Pacientes cargados:', data);
         setPatients(data);
         setErrorPatients(null);
       } catch (error) {
@@ -364,19 +375,21 @@ const AppointmentCalendar = () => {
 
   // Evento cuando se hace clic en una cita existente
   const handleEventClick = (clickInfo: any) => {
-    const citaId = clickInfo.event.id;
-    const cita = calendarEvents.find(event => event.id === citaId);
+    const event = clickInfo.event;
+    console.log('Evento clickeado:', event); // Para debugging
     
-    if (cita) {
+    if (event) {
+      setSelectedAppointmentId(event.id);
       setSelectedAppointment({
-        id: cita.id,
-        title: cita.title,
-        start: cita.start,
-        end: cita.end,
-        patient: cita.extendedProps.patient,
-        dentist: cita.extendedProps.dentist,
-        service: cita.extendedProps.service,
-        status: cita.extendedProps.status
+        id: event.id,
+        title: event.title,
+        start: event.startStr,
+        end: event.endStr,
+        patient: event.extendedProps.patient,
+        dentist: event.extendedProps.dentist,
+        service: event.extendedProps.service,
+        status: event.extendedProps.status,
+        notes: event.extendedProps.notes
       });
       setOpenAppointmentDetails(true);
     }
@@ -389,21 +402,47 @@ const AppointmentCalendar = () => {
     
     return (
       <Box className="appointment-card">
-        <Box className="appointment-time">
-          <AccessTimeIcon sx={{ fontSize: '0.875rem' }} />
-          {timeText} • Horario de cita
+        <Box className="appointment-header" sx={{ 
+          display: 'flex', 
+          alignItems: 'center', 
+          gap: 1,
+          mb: 0.5
+        }}>
+          <Box sx={{ 
+            display: 'flex', 
+            alignItems: 'center',
+            gap: 0.5,
+            flex: 1,
+            minWidth: 0 // Para permitir truncamiento
+          }}>
+            <AccessTimeIcon sx={{ fontSize: '0.875rem' }} />
+            <Typography noWrap sx={{ fontSize: '0.875rem' }}>
+              {timeText}
+            </Typography>
+            <Tooltip title={extendedProps.patient} arrow placement="top">
+              <Avatar sx={{ 
+                width: 24, 
+                height: 24, 
+                fontSize: '0.75rem',
+                bgcolor: 'primary.main',
+                ml: 1,
+                cursor: 'pointer'
+              }}>
+                {extendedProps.patient.charAt(0)}
+              </Avatar>
+            </Tooltip>
+          </Box>
         </Box>
         
-        <Typography className="appointment-title">
+        <Typography className="appointment-title" noWrap>
           {event.title}
         </Typography>
-        
-        <Box className="appointment-patient">
-          <PersonIcon sx={{ fontSize: '0.875rem' }} />
-          {extendedProps.patient}
-        </Box>
 
-        <Typography className="appointment-status">
+        <Typography className="appointment-status" sx={{ 
+          fontSize: '0.75rem',
+          color: 'white',
+          mt: 0.5
+        }}>
           {extendedProps.status}
         </Typography>
       </Box>
@@ -560,7 +599,7 @@ const AppointmentCalendar = () => {
   const handleNewAppointmentChange = (field: keyof NewAppointmentFormData, value: any) => {
     if (field === 'dateTime' && value) {
       // Asegurarnos de que la fecha esté en la zona horaria local
-      const localDate = dayjs.tz(value, dayjs.tz.guess());
+      const localDate = dayjs(value).tz(dayjs.tz.guess());
       console.log('Actualizando fecha en el formulario:', {
         fechaOriginal: value.format('YYYY-MM-DD HH:mm:ss'),
         fechaLocal: localDate.format('YYYY-MM-DD HH:mm:ss'),
@@ -872,6 +911,206 @@ const AppointmentCalendar = () => {
       // Mostrar mensaje de error
       const errorMessage = error.response?.data?.message || error.message || 'Error al actualizar la duración de la cita';
       addNotification(errorMessage, 'error');
+    }
+  };
+
+  // Función para manejar la selección manual de paciente
+  const handleManualPatientSelection = (selectedPatientId: string) => {
+    if (!tempAppointmentData) return;
+
+    const pacienteSeleccionado = patients.find(p => p.id === selectedPatientId);
+    if (!pacienteSeleccionado) return;
+
+    const newData = {
+      ...tempAppointmentData,
+      patient: selectedPatientId
+    };
+
+    setNewAppointmentData(newData);
+    setOpenPatientSelector(false);
+    setOpenEditAppointment(true);
+  };
+
+  // Función para manejar la edición de cita
+  const handleEditAppointment = () => {
+    try {
+      if (!selectedAppointment) {
+        console.error('No hay cita seleccionada');
+        return;
+      }
+
+      if (patients.length === 0) {
+        console.error('La lista de pacientes está vacía');
+        addNotification('Error: No se han cargado los pacientes', 'error');
+        return;
+      }
+      
+      console.log('Preparando edición de cita:', selectedAppointment);
+      console.log('Lista de pacientes disponibles:', patients.map(p => ({
+        id: p.id,
+        nombre: p.usuario?.nombre,
+        nombreCompleto: `${p.usuario?.nombre || ''} ${p.usuario?.apellidos || ''}`.trim()
+      })));
+      
+      // Buscar paciente de forma más flexible
+      const pacienteSeleccionado = patients.find(p => {
+        const nombrePaciente = `${p.usuario?.nombre || ''} ${p.usuario?.apellidos || ''}`.trim().toLowerCase();
+        const nombreBuscado = selectedAppointment.patient.toLowerCase().trim();
+        
+        console.log('Comparando nombres:', {
+          nombrePaciente,
+          nombreBuscado,
+          coincide: nombrePaciente.includes(nombreBuscado) || nombreBuscado.includes(nombrePaciente)
+        });
+        
+        return nombrePaciente.includes(nombreBuscado) || nombreBuscado.includes(nombrePaciente);
+      });
+
+      // Buscar dentista
+      const dentistaSeleccionado = dentistas.find(d => {
+        const nombreDentista = d.usuario?.nombre?.toLowerCase().trim() || '';
+        const nombreBuscado = selectedAppointment.dentist.toLowerCase().trim();
+        return nombreDentista.includes(nombreBuscado) || nombreBuscado.includes(nombreDentista);
+      });
+
+      // Buscar servicio
+      const servicioSeleccionado = services.find(s => {
+        const nombreServicio = s.nombre.toLowerCase().trim();
+        const nombreBuscado = selectedAppointment.service.toLowerCase().trim();
+        return nombreServicio === nombreBuscado || selectedAppointment.title.toLowerCase().includes(nombreServicio);
+      });
+
+      // Si no se encuentra el paciente pero sí el dentista y el servicio, mostrar selector manual
+      if (!pacienteSeleccionado && dentistaSeleccionado && servicioSeleccionado) {
+        const tempData = {
+          dentist: dentistaSeleccionado.id,
+          service: servicioSeleccionado.id.toString(),
+          dateTime: dayjs(selectedAppointment.start),
+          duration: dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute'),
+          notes: selectedAppointment.notes || ''
+        };
+        
+        setTempAppointmentData(tempData);
+        setOpenAppointmentDetails(false);
+        setOpenPatientSelector(true);
+        return;
+      }
+
+      // Si faltan otros datos, mostrar error
+      if (!dentistaSeleccionado || !servicioSeleccionado) {
+        let mensajeError = 'Error al preparar la edición:';
+        if (!dentistaSeleccionado) mensajeError += ' No se encontró el dentista.';
+        if (!servicioSeleccionado) mensajeError += ' No se encontró el servicio.';
+        
+        addNotification(mensajeError, 'error');
+        return;
+      }
+
+      // Si todo está bien, proceder con la edición
+      const newData = {
+        patient: pacienteSeleccionado!.id,
+        dentist: dentistaSeleccionado.id,
+        service: servicioSeleccionado.id.toString(),
+        dateTime: dayjs(selectedAppointment.start),
+        duration: dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute'),
+        notes: selectedAppointment.notes || ''
+      };
+
+      setNewAppointmentData(newData);
+      setOpenAppointmentDetails(false);
+      setOpenEditAppointment(true);
+    } catch (error) {
+      console.error('Error al preparar la edición de la cita:', error);
+      addNotification('Error al preparar la edición de la cita', 'error');
+    }
+  };
+
+  // Función para manejar la eliminación de cita
+  const handleDeleteAppointment = async () => {
+    try {
+      if (!selectedAppointmentId) return;
+      
+      await citaService.eliminarCita(selectedAppointmentId);
+      
+      // Actualizar el estado local
+      setCalendarEvents(prevEvents => 
+        prevEvents.filter(event => event.id !== selectedAppointmentId)
+      );
+      
+      // Actualizar las próximas citas
+      const nuevasProximasCitas = await citaService.obtenerCitas({
+        params: {
+          desde: new Date().toISOString(),
+          estado: 'pendiente,confirmada'
+        }
+      });
+      setProximasCitas(nuevasProximasCitas.slice(0, 5));
+      
+      addNotification('Cita eliminada exitosamente', 'success');
+      setOpenDeleteConfirm(false);
+      setOpenAppointmentDetails(false);
+    } catch (error) {
+      console.error('Error al eliminar la cita:', error);
+      addNotification('Error al eliminar la cita', 'error');
+    }
+  };
+
+  // Función para actualizar una cita
+  const handleUpdateAppointment = async () => {
+    try {
+      if (!selectedAppointmentId || !newAppointmentData.dateTime) return;
+
+      // Convertir la fecha local a UTC
+      const fechaLocal = dayjs.tz(newAppointmentData.dateTime, dayjs.tz.guess());
+      const fechaUTC = fechaLocal.tz('UTC');
+
+      const citaActualizada = {
+        clienteId: Number(newAppointmentData.patient),
+        dentistaId: Number(newAppointmentData.dentist),
+        servicioId: Number(newAppointmentData.service),
+        fechaHora: fechaUTC.toISOString(),
+        duracion: Number(newAppointmentData.duration),
+        notas: newAppointmentData.notes.trim(),
+      };
+
+      const response = await citaService.actualizarCita(selectedAppointmentId, citaActualizada);
+
+      // Actualizar el evento en el calendario
+      setCalendarEvents(prevEvents => {
+        const index = prevEvents.findIndex(event => event.id === selectedAppointmentId);
+        if (index === -1) return prevEvents;
+
+        const updatedEvents = [...prevEvents];
+        updatedEvents[index] = {
+          ...updatedEvents[index],
+          start: response.fechaHora,
+          end: dayjs(response.fechaHora).add(response.duracion, 'minute').toISOString(),
+          title: response.servicio.nombre,
+          extendedProps: {
+            ...updatedEvents[index].extendedProps,
+            patient: response.cliente.usuario.nombre,
+            dentist: response.dentista.usuario.nombre,
+            service: response.servicio.nombre,
+            duration: response.duracion
+          }
+        };
+        return updatedEvents;
+      });
+
+      // Actualizar las próximas citas
+      const nuevasProximasCitas = await citaService.obtenerCitas({
+        params: {
+          desde: new Date().toISOString(),
+          estado: 'pendiente,confirmada'
+        }
+      });
+      setProximasCitas(nuevasProximasCitas.slice(0, 5));
+
+      addNotification('Cita actualizada exitosamente', 'success');
+      setOpenEditAppointment(false);
+    } catch (error) {
+      console.error('Error al actualizar la cita:', error);
+      addNotification('Error al actualizar la cita', 'error');
     }
   };
 
@@ -1420,7 +1659,7 @@ const AppointmentCalendar = () => {
                   top: 8,
                 }}
               >
-                &times;
+                <CloseIcon />
               </IconButton>
             </DialogTitle>
             <DialogContent>
@@ -1507,33 +1746,41 @@ const AppointmentCalendar = () => {
                     </Typography>
                   </Box>
                 </Box>
+
+                {selectedAppointment.notes && (
+                  <>
+                    <Divider sx={{ my: 2 }} />
+                    <Typography variant="subtitle1" gutterBottom>
+                      Notas
+                    </Typography>
+                    <Typography variant="body1">
+                      {selectedAppointment.notes}
+                    </Typography>
+                  </>
+                )}
               </Box>
             </DialogContent>
-            <DialogActions>
-              {selectedAppointment.status !== 'cancelled' && (
-                <Button 
-                  color="error" 
-                  variant="outlined"
-                >
-                  Cancelar Cita
-                </Button>
-              )}
-              {selectedAppointment.status === 'pending' && (
-                <Button 
-                  color="success" 
-                  variant="outlined"
-                >
-                  Confirmar
-                </Button>
-              )}
+            <DialogActions sx={{ p: 2, gap: 1 }}>
+              <Button 
+                color="error" 
+                variant="outlined"
+                startIcon={<DeleteIcon />}
+                onClick={() => setOpenDeleteConfirm(true)}
+              >
+                Eliminar
+              </Button>
+              <Box sx={{ flex: 1 }} />
               <Button 
                 onClick={() => setOpenAppointmentDetails(false)}
+                variant="outlined"
               >
                 Cerrar
               </Button>
               <Button 
                 variant="contained"
                 color="primary"
+                startIcon={<EditIcon />}
+                onClick={handleEditAppointment}
               >
                 Editar
               </Button>
@@ -1542,7 +1789,164 @@ const AppointmentCalendar = () => {
         )}
       </Dialog>
 
-      {/* El diálogo de horarios se ha eliminado ya que ahora se muestra en el panel derecho */}
+      {/* Modal de confirmación de eliminación */}
+      <Dialog
+        open={openDeleteConfirm}
+        onClose={() => setOpenDeleteConfirm(false)}
+        maxWidth="xs"
+        fullWidth
+      >
+        <DialogTitle>Confirmar Eliminación</DialogTitle>
+        <DialogContent>
+          <Typography>
+            ¿Está seguro que desea eliminar esta cita? Esta acción no se puede deshacer.
+          </Typography>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button 
+            onClick={() => setOpenDeleteConfirm(false)}
+            variant="outlined"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleDeleteAppointment}
+            variant="contained"
+            color="error"
+          >
+            Eliminar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Modal para editar cita */}
+      <Dialog 
+        open={openEditAppointment} 
+        onClose={() => setOpenEditAppointment(false)}
+        maxWidth="md"
+        fullWidth
+      >
+        <DialogTitle>
+          Editar Cita
+          <IconButton
+            aria-label="close"
+            onClick={() => setOpenEditAppointment(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <Stack spacing={3} sx={{ mt: 2 }}>
+              <DateTimePicker
+                label="Fecha y hora"
+                value={newAppointmentData.dateTime}
+                onChange={(date) => {
+                  if (date) {
+                    const localDate = dayjs(date).tz(dayjs.tz.guess());
+                    handleNewAppointmentChange('dateTime', localDate);
+                  }
+                }}
+                timezone="system"
+              />
+              {renderPatientSelector()}
+              {renderServiceSelector()}
+              <TextField
+                multiline
+                rows={4}
+                label="Notas"
+                fullWidth
+                value={newAppointmentData.notes}
+                onChange={(e) => handleNewAppointmentChange('notes', e.target.value)}
+              />
+            </Stack>
+          </LocalizationProvider>
+        </DialogContent>
+        <DialogActions sx={{ p: 2, gap: 1 }}>
+          <Button 
+            onClick={() => setOpenEditAppointment(false)}
+            variant="outlined"
+          >
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleUpdateAppointment}
+            variant="contained"
+            color="primary"
+          >
+            Guardar Cambios
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      {/* Diálogo para selección manual de paciente */}
+      <Dialog
+        open={openPatientSelector}
+        onClose={() => setOpenPatientSelector(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>
+          Seleccionar Paciente
+          <IconButton
+            aria-label="close"
+            onClick={() => setOpenPatientSelector(false)}
+            sx={{
+              position: 'absolute',
+              right: 8,
+              top: 8,
+            }}
+          >
+            <CloseIcon />
+          </IconButton>
+        </DialogTitle>
+        <DialogContent>
+          <Typography color="text.secondary" sx={{ mb: 2 }}>
+            No se pudo encontrar automáticamente el paciente. Por favor, seleccione el paciente correcto de la lista.
+          </Typography>
+          <Box sx={{ mt: 2 }}>
+            {patients.map((patient) => (
+              <Box
+                key={patient.id}
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  cursor: 'pointer',
+                  '&:hover': {
+                    bgcolor: 'action.hover'
+                  },
+                  mb: 1
+                }}
+                onClick={() => handleManualPatientSelection(patient.id)}
+              >
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                  <Avatar sx={{ bgcolor: 'primary.main' }}>
+                    {patient.usuario?.nombre?.charAt(0) || '?'}
+                  </Avatar>
+                  <Box>
+                    <Typography variant="subtitle1">
+                      {`${patient.usuario?.nombre || ''} ${patient.usuario?.apellidos || ''}`}
+                    </Typography>
+                    <Typography variant="body2" color="text.secondary">
+                      {patient.usuario?.email || 'Sin correo'} • {patient.usuario?.telefono || 'Sin teléfono'}
+                    </Typography>
+                  </Box>
+                </Box>
+              </Box>
+            ))}
+          </Box>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPatientSelector(false)}>
+            Cancelar
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };

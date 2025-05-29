@@ -662,14 +662,19 @@ const DentistaForm = () => {
 
             {!isCreatingNewUser ? (
               <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Box sx={{ flexGrow: 1, minWidth: 300 }}>
-                  <Autocomplete
+                <Box sx={{ flexGrow: 1, minWidth: 300 }}>                  <Autocomplete
                     id="user-select"
                     options={availableUsers}
                     value={selectedUser}
                     onChange={handleUserChange}
-                    getOptionLabel={(option) => `${option.nombre} (${option.email})`}
+                    getOptionLabel={(option) => option ? `${option.nombre} (${option.email})` : ''}
+                    isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     loading={loadingUsers}
+                    renderOption={(props, option) => (
+                      <li {...props} key={`user-${option.id}`}>
+                        {`${option.nombre} (${option.email})`}
+                      </li>
+                    )}
                     renderInput={(params) => (
                       <TextField
                         {...params}

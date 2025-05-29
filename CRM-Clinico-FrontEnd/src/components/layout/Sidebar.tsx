@@ -27,7 +27,7 @@ import {
   Forum as ForumIcon,
   SupervisorAccount as SupervisorAccountIcon,
   Analytics as AnalyticsIcon,
-  NoteAlt as NoteIcon,
+  AttachMoney as BillingIcon,
 } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -106,6 +106,17 @@ const Sidebar: React.FC<SidebarProps> = ({ open, drawerWidth, onDrawerToggle }) 
       path: '/services',
       icon: <MedicalServicesIcon />,
       roles: ['admin', 'dentista']
+    },
+    {
+      title: 'Facturación',
+      path: '/billing',
+      icon: <BillingIcon />,
+      roles: ['admin', 'dentista'],
+      children: [
+        { title: 'Facturas', path: '/billing' },
+        { title: 'Nueva Factura', path: '/billing/new' },
+        { title: 'Pagos', path: '/billing/payments' }
+      ]
     },
     {
       title: 'Tareas y Notas',
