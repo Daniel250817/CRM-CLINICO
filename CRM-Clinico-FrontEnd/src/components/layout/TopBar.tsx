@@ -74,9 +74,6 @@ const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
   // Efecto para mostrar la información del usuario cuando se carga
   useEffect(() => {
     if (user) {
-      console.log('Usuario en TopBar:', user);
-      console.log('Settings del usuario:', user.settings);
-      console.log('Avatar path:', user.settings?.avatar);
       if (user.settings?.avatar) {
         console.log('URL final del avatar:', getAvatarUrl(user.settings.avatar));
       }
@@ -245,9 +242,10 @@ const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
       anchorOrigin={{ horizontal: 'right', vertical: 'bottom' }}
       PaperProps={{
         sx: {
-          width: 320,
-          maxHeight: 400,
-          px: 1
+          width: { xs: 300, sm: 350 },
+          maxHeight: 450,
+          px: 1,
+          overflow: 'hidden auto'
         }
       }}
     >
@@ -280,28 +278,61 @@ const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
           <MenuItem 
             key={notification.id} 
             onClick={() => handleMarkAsRead(notification)}
-            sx={{ borderRadius: 1, mb: 0.5 }}
+            sx={{ 
+              borderRadius: 1, 
+              mb: 0.5,
+              maxWidth: '100%',
+              '&:hover': {
+                backgroundColor: 'action.hover'
+              }
+            }}
           >
-            <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 1, py: 0.5 }}>
+            <Box sx={{ 
+              display: 'flex', 
+              alignItems: 'flex-start', 
+              gap: 1, 
+              py: 0.5,
+              width: '100%'
+            }}>
               <Avatar sx={{ 
-                width: 40, 
-                height: 40, 
+                width: 36, 
+                height: 36, 
                 bgcolor: notification.tipo === 'alerta' ? 'error.main' : 
                          notification.tipo === 'recordatorio' ? 'warning.main' : 
-                         'primary.main' 
+                         'primary.main',
+                flexShrink: 0 
               }}>
                 <NotificationsIcon fontSize="small" />
               </Avatar>
-              <Box>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                  <Typography variant="body2" fontWeight={!notification.leida ? 'bold' : 'regular'}>
+              <Box sx={{ 
+                width: 'calc(100% - 44px)',
+                overflow: 'hidden'
+              }}>
+                <Box sx={{ 
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  width: '100%'
+                }}>
+                  <Typography 
+                    variant="body2" 
+                    fontWeight={!notification.leida ? 'bold' : 'regular'}
+                    sx={{ 
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      display: '-webkit-box',
+                      WebkitLineClamp: 2,
+                      WebkitBoxOrient: 'vertical',
+                      wordBreak: 'break-word',
+                      width: 'calc(100% - 12px)'
+                    }}
+                  >
                     {notification.mensaje}
                   </Typography>
                   {!notification.leida && (
-                    <CircleIcon sx={{ color: 'primary.main', fontSize: 8 }} />
+                    <CircleIcon sx={{ color: 'primary.main', fontSize: 8, flexShrink: 0, ml: 0.5, mt: 0.5 }} />
                   )}
                 </Box>
-                <Typography variant="caption" color="text.secondary" display="block">
+                <Typography variant="caption" color="text.secondary" display="block" sx={{ mt: 0.5 }}>
                   {formatDate(notification.fecha)}
                 </Typography>
               </Box>

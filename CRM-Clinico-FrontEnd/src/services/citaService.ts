@@ -128,6 +128,25 @@ const citaService = {
     }
   },
 
+  eliminarCita: async (id: string): Promise<void> => {
+    await api.delete(`/citas/${id}`);
+  },
+
+  actualizarCita: async (id: string, citaData: Partial<CitaDTO>): Promise<Cita> => {
+    const response = await api.put<Cita>(`/citas/${id}`, citaData);
+    return response.data;
+  },
+  // Obtener todas las citas
+  obtenerCitas: async (config?: AxiosRequestConfig) => {
+    try {
+      const response = await api.get<ApiResponse<Cita[]>>('/citas', config);
+      return response.data.data;
+    } catch (error) {
+      console.error('Error al obtener citas:', error);
+      return [];
+    }
+  },
+
   // Obtener citas de un cliente específico
   obtenerCitasCliente: async (clienteId: string, config?: AxiosRequestConfig) => {
     const response = await api.get<ApiResponse<Cita[]>>(`/clientes/${clienteId}/citas`, config);

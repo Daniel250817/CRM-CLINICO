@@ -179,6 +179,36 @@ router.get('/perfil', restringirA('dentista'), dentistaController.obtenerPerfil)
 
 /**
  * @swagger
+ * /api/dentistas/{id}:
+ *   get:
+ *     summary: Obtener un dentista por ID
+ *     tags: [Dentistas]
+ *     description: Retorna la información completa de un dentista específico
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: integer
+ *         description: ID del dentista
+ *     responses:
+ *       200:
+ *         description: Dentista obtenido correctamente
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Dentista'
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ *       404:
+ *         $ref: '#/components/responses/NotFound'
+ */
+router.get('/:id', dentistaController.obtenerPerfil);
+
+/**
+ * @swagger
  * /api/dentistas/perfil:
  *   patch:
  *     summary: Actualizar perfil del dentista actual

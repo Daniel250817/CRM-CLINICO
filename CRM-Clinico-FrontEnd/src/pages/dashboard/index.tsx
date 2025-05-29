@@ -841,7 +841,7 @@ const Dashboard = () => {
               </Box>
             )}
             <Box sx={{ p: 2, display: 'flex', justifyContent: 'center' }}>
-              <Button color="primary" variant="outlined">
+              <Button color="primary" variant="outlined" onClick={() => navigate('/appointments/calendar')}>
                 Ver Todas las Citas
               </Button>
             </Box>
@@ -884,7 +884,7 @@ const Dashboard = () => {
                       0}
                   </Typography>
                   <Typography variant="body2" color="text.secondary" align="center">
-                    Nuevos
+                    Nuevos Usuarios
                   </Typography>
                 </Box>
                 <Box>

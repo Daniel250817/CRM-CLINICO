@@ -4,25 +4,26 @@ import PrivateRoute from '../components/auth/PrivateRoute';
 import NotificationsPage from '../pages/notifications';
 import DashboardPage from '../pages/dashboard';
 import LoginPage from '../pages/auth/Login';
-import RegisterPage from '../pages/auth/Register';
-import ForgotPasswordPage from '../pages/auth/ForgotPassword';
-import ResetPasswordPage from '../pages/auth/ResetPassword';
+// import RegisterPage from '../pages/auth/Register';
+// import ForgotPasswordPage from '../pages/auth/ForgotPassword';
+// import ResetPasswordPage from '../pages/auth/ResetPassword';
 import UserSettingsPage from '../pages/settings/UserSettings';
-import CitasPage from '../pages/citas';
-import PacientesPage from '../pages/pacientes';
+// import CitasPage from '../pages/citas';
+// import PacientesPage from '../pages/pacientes';
 import DentistasPage from '../pages/dentistas';
 import DentistaForm from '../pages/dentistas/DentistaForm';
 import DentistaDetalle from '../pages/dentistas/DentistaDetalle';
-import ServiciosPage from '../pages/servicios';
+// import ServiciosPage from '../pages/servicios';
 import TaskBoard from '../pages/tasks/TaskBoard';
+import BillingPage from '../pages/billing/BillingPage';
 
 const AppRoutes = () => {
   return (
     <Routes>
       <Route path="/login" element={<LoginPage />} />
-      <Route path="/register" element={<RegisterPage />} />
+      {/* <Route path="/register" element={<RegisterPage />} />
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
-      <Route path="/reset-password" element={<ResetPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} /> */}
       
       <Route path="/" element={
         <PrivateRoute>
@@ -48,7 +49,7 @@ const AppRoutes = () => {
         </PrivateRoute>
       } />
       
-      <Route path="/citas" element={
+      {/* <Route path="/citas" element={
         <PrivateRoute>
           <MainLayout>
             <CitasPage />
@@ -62,7 +63,7 @@ const AppRoutes = () => {
             <PacientesPage />
           </MainLayout>
         </PrivateRoute>
-      } />
+      } /> */}
       
       <Route path="/dentistas" element={
         <PrivateRoute>
@@ -96,13 +97,13 @@ const AppRoutes = () => {
         </PrivateRoute>
       } />
       
-      <Route path="/servicios" element={
+      {/* <Route path="/servicios" element={
         <PrivateRoute>
           <MainLayout>
             <ServiciosPage />
           </MainLayout>
         </PrivateRoute>
-      } />
+      } /> */}
       
       <Route path="/tasks" element={
         <PrivateRoute>
@@ -124,6 +125,22 @@ const AppRoutes = () => {
         <PrivateRoute>
           <MainLayout>
             <TaskBoard />
+          </MainLayout>
+        </PrivateRoute>
+      } />
+
+      <Route path="/billing" element={
+        <PrivateRoute>
+          <MainLayout>
+            <BillingPage />
+          </MainLayout>
+        </PrivateRoute>
+      } />
+
+      <Route path="/facturacion" element={
+        <PrivateRoute>
+          <MainLayout>
+            <BillingPage />
           </MainLayout>
         </PrivateRoute>
       } />
