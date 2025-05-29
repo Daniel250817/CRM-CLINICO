@@ -1,3 +1,4 @@
+// filepath: c:\Users\julio\Pictures\CRM-CLINICO\CRM-Clinico-FrontEnd\src\services\citaService.ts
 import { api } from './api';
 import dayjs from 'dayjs';
 import utc from 'dayjs/plugin/utc';
@@ -66,7 +67,7 @@ const citaService = {
       return response.data.data;
     } catch (error) {
       console.error('Error al obtener citas:', error);
-      throw new Error('Error al obtener las citas');
+      return [];
     }
   },
 
@@ -127,23 +128,39 @@ const citaService = {
       throw new Error('Error al actualizar el estado de la cita');
     }
   },
-
+  
   eliminarCita: async (id: string): Promise<void> => {
     await api.delete(`/citas/${id}`);
   },
 
+  // Método para actualizar cita completa
   actualizarCita: async (id: string, citaData: Partial<CitaDTO>): Promise<Cita> => {
-    const response = await api.put<Cita>(`/citas/${id}`, citaData);
-    return response.data;
-  },
-  // Obtener todas las citas
-  obtenerCitas: async (config?: AxiosRequestConfig) => {
     try {
-      const response = await api.get<ApiResponse<Cita[]>>('/citas', config);
+      // Como no hay endpoint para actualizar toda la cita, usamos el de fecha/hora
+      const { fechaHora, duracion, notas } = citaData;
+      
+      if (!fechaHora) {
+        throw new Error('La fecha y hora son obligatorias para actualizar una cita');
+      }
+
+      console.log('Actualizando cita completa:', {
+        id,
+        fechaHora,
+        duracion,
+        notas
+      });
+
+      // Usar el endpoint de fecha e incluir las notas
+      const response = await api.patch<ApiResponse<Cita>>(`/citas/${id}/fecha`, {
+        fechaHora,
+        ...(duracion !== undefined && { duracion }),
+        ...(notas !== undefined && { notas })
+      });
+      
       return response.data.data;
     } catch (error) {
-      console.error('Error al obtener citas:', error);
-      return [];
+      console.error('Error al actualizar cita:', error);
+      throw error;
     }
   },
 
@@ -166,22 +183,21 @@ const citaService = {
     }>>(`/citas/dentista/${dentistaId}/disponibilidad?fecha=${fecha}`, config);
     return response.data.data;
   },
-
-  async actualizarFechaHoraCita(id: string, fechaHora: string, duracion?: number): Promise<Cita> {
+  
+  // Método específico para actualizar fecha/hora de cita
+  async actualizarFechaHoraCita(id: string, fechaHora: string, duracion?: number, notas?: string): Promise<Cita> {
     try {
-      // Convertir a UTC
-      const fechaUTC = dayjs(fechaHora).utc().format('YYYY-MM-DDTHH:mm:ss[Z]');
-      
       console.log('Actualizando fecha de cita:', {
         fechaOriginal: fechaHora,
-        fechaUTC,
-        duracion
+        duracion,
+        notas
       });
 
       // Usar la ruta específica para actualizar fecha y hora
       const response = await api.patch<ApiResponse<Cita>>(`/citas/${id}/fecha`, {
-        fechaHora: fechaUTC,
-        ...(duracion && { duracion })
+        fechaHora,
+        ...(duracion && { duracion }),
+        ...(notas && { notas })
       });
 
       return response.data.data;

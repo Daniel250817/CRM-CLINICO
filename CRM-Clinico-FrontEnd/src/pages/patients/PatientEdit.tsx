@@ -230,21 +230,23 @@ const PatientEdit = () => {
           fechaNacimiento: formData.fechaNacimiento?.format('YYYY-MM-DD') || null,
           genero: formData.genero
         },
-        direccion: formData.direccion || null,
-        ciudad: formData.ciudad || null,
-        codigoPostal: formData.codigoPostal || null,
-        ocupacion: formData.ocupacion || null,
-        estadoCivil: formData.estadoCivil || null,
-        contactoEmergencia: formData.contactoEmergencia.nombre ? {
-          nombre: formData.contactoEmergencia.nombre,
-          telefono: formData.contactoEmergencia.telefono,
-          relacion: formData.contactoEmergencia.relacion
-        } : null,
+        direccion: formData.direccion || '',
+        ciudad: formData.ciudad || '',
+        codigoPostal: formData.codigoPostal || '',
+        ocupacion: formData.ocupacion || '',
+        estadoCivil: formData.estadoCivil || '',
+        // Asignamos telefonoEmergencia para compatibilidad con backend
+        telefonoEmergencia: formData.contactoEmergencia.telefono || '',
+        contactoEmergencia: {
+          nombre: formData.contactoEmergencia.nombre || '',
+          telefono: formData.contactoEmergencia.telefono || '',
+          relacion: formData.contactoEmergencia.relacion || ''
+        },
         historialMedico: {
-          alergias: formData.historialMedico.alergias || null,
-          enfermedadesCronicas: formData.historialMedico.enfermedadesCronicas || null,
-          medicamentosActuales: formData.historialMedico.medicamentosActuales || null,
-          cirugiasPrevias: formData.historialMedico.cirugiasPrevias || null
+          alergias: formData.historialMedico.alergias || '',
+          enfermedadesCronicas: formData.historialMedico.enfermedadesCronicas || '',
+          medicamentosActuales: formData.historialMedico.medicamentosActuales || '',
+          cirugiasPrevias: formData.historialMedico.cirugiasPrevias || ''
         }
       };
 

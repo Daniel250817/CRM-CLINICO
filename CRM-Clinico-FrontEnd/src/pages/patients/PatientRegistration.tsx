@@ -113,6 +113,17 @@ const PatientRegistration = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    
+    // Only validate emergency contact phone if provided
+    if (formData.contactoEmergencia.telefono.trim()) {
+      // Basic phone validation - 8 digits
+      const phonePattern = /^\d{8}$/;
+      if (!phonePattern.test(formData.contactoEmergencia.telefono.trim().replace(/\D/g, ''))) {
+        setError('El teléfono de contacto de emergencia debe contener exactamente 8 dígitos numéricos.');
+        return;
+      }
+    }
+    
     setLoading(true);
     setError(null);
 
@@ -129,21 +140,23 @@ const PatientRegistration = () => {
           fechaNacimiento,
           genero: formData.genero || 'no_especificado'
         },
-        direccion: formData.direccion.trim() || null,
-        ciudad: formData.ciudad.trim() || null,
-        codigoPostal: formData.codigoPostal.trim() || null,
-        ocupacion: formData.ocupacion.trim() || null,
-        estadoCivil: formData.estadoCivil || null,
-        contactoEmergencia: formData.contactoEmergencia.nombre.trim() ? {
-          nombre: formData.contactoEmergencia.nombre.trim(),
-          telefono: formData.contactoEmergencia.telefono.trim(),
-          relacion: formData.contactoEmergencia.relacion.trim()
-        } : null,
+        direccion: formData.direccion.trim() || '',
+        ciudad: formData.ciudad.trim() || '',
+        codigoPostal: formData.codigoPostal.trim() || '',
+        ocupacion: formData.ocupacion.trim() || '',
+        estadoCivil: formData.estadoCivil || '',
+        // Siempre enviar telefonoEmergencia como string vacío si no hay valor
+        telefonoEmergencia: formData.contactoEmergencia.telefono.trim() || '',
+        contactoEmergencia: {
+          nombre: formData.contactoEmergencia.nombre.trim() || '',
+          telefono: formData.contactoEmergencia.telefono.trim() || '',
+          relacion: formData.contactoEmergencia.relacion.trim() || ''
+        },
         historialMedico: {
-          alergias: formData.historialMedico.alergias.trim() || null,
-          enfermedadesCronicas: formData.historialMedico.enfermedadesCronicas.trim() || null,
-          medicamentosActuales: formData.historialMedico.medicamentosActuales.trim() || null,
-          cirugiasPrevias: formData.historialMedico.cirugiasPrevias.trim() || null
+          alergias: formData.historialMedico.alergias.trim() || '',
+          enfermedadesCronicas: formData.historialMedico.enfermedadesCronicas.trim() || '',
+          medicamentosActuales: formData.historialMedico.medicamentosActuales.trim() || '',
+          cirugiasPrevias: formData.historialMedico.cirugiasPrevias.trim() || ''
         }
       };
 
@@ -396,6 +409,7 @@ const PatientRegistration = () => {
                       label="Teléfono del Contacto"
                       value={formData.contactoEmergencia.telefono}
                       onChange={(e) => handleInputChange('contactoEmergencia.telefono', e.target.value)}
+                      helperText="Debe contener exactamente 8 dígitos numéricos"
                     />
                   </Grid>
 
