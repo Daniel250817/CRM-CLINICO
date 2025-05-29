@@ -58,8 +58,7 @@ module.exports = (sequelize) => {
     añosExperiencia: {
       type: DataTypes.INTEGER,
       allowNull: true
-    },
-    biografia: {
+    },    biografia: {
       type: DataTypes.TEXT,
       allowNull: true
     }

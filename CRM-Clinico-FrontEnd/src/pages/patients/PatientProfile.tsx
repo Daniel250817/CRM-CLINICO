@@ -62,6 +62,7 @@ import {
 import { clienteService, type Cliente, type TratamientoCliente } from '../../services/clienteService';
 import { obtenerPerfilCompletoCliente, type DocumentoAPI, type TratamientoAPI } from '../../services/documentoService';
 import { citaService, type Cita } from '../../services/citaService';
+import { useNotification } from '../../contexts/NotificationContext';
 
 interface TabPanelProps {
   children?: React.ReactNode;
@@ -93,6 +94,7 @@ const PatientProfile = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const theme = useTheme();
+  const { addNotification } = useNotification();
   const [tabValue, setTabValue] = useState(0);
   const [openNoteDialog, setOpenNoteDialog] = useState(false);
   const [openDocumentDialog, setOpenDocumentDialog] = useState(false);
@@ -215,7 +217,6 @@ const PatientProfile = () => {
     if (!id || !patientData) return;
 
     try {
-      // Actualizar historial médico del cliente
       await clienteService.actualizarCliente(id, {
         usuario: {
           ...patientData.cliente.usuario,
@@ -223,18 +224,21 @@ const PatientProfile = () => {
             ? patientData.cliente.usuario.fechaNacimiento.toISOString()
             : null
         },
-        direccion: patientData.cliente.direccion || null,
-        ciudad: patientData.cliente.ciudad || null,
-        codigoPostal: patientData.cliente.codigoPostal || null,
-        ocupacion: patientData.cliente.ocupacion || null,
-        estadoCivil: patientData.cliente.estadoCivil || null,
-        contactoEmergencia: patientData.cliente.contactoEmergencia || null,
+        direccion: patientData.cliente.direccion || '',
+        ciudad: patientData.cliente.ciudad || '',
+        codigoPostal: patientData.cliente.codigoPostal || '',
+        ocupacion: patientData.cliente.ocupacion || '',
+        estadoCivil: patientData.cliente.estadoCivil || '',
+        contactoEmergencia: patientData.cliente.contactoEmergencia || {
+          nombre: '',
+          telefono: '',
+          relacion: ''
+        },
         historialMedico: {
-          ...patientData.cliente.historialMedico,
-          alergias: patientData.cliente.historialMedico?.alergias || null,
-          enfermedadesCronicas: patientData.cliente.historialMedico?.enfermedadesCronicas || null,
-          medicamentosActuales: patientData.cliente.historialMedico?.medicamentosActuales || null,
-          cirugiasPrevias: medicalNotes || null
+          alergias: patientData.cliente.historialMedico?.alergias || '',
+          enfermedadesCronicas: patientData.cliente.historialMedico?.enfermedadesCronicas || '',
+          medicamentosActuales: patientData.cliente.historialMedico?.medicamentosActuales || '',
+          cirugiasPrevias: medicalNotes || ''
         }
       });
 
@@ -250,7 +254,8 @@ const PatientProfile = () => {
       handleMedicalDialogClose();
     } catch (err) {
       console.error('Error al guardar el historial médico:', err);
-      // Mostrar mensaje de error
+      // TODO: Mostrar mensaje de error al usuario
+      addNotification('Error al guardar el historial médico', 'error');
     }
   };
 
@@ -407,7 +412,7 @@ const PatientProfile = () => {
                   <ListItemText 
                     primary="Contacto de Emergencia"
                     secondary={
-                      cliente.contactoEmergencia
+                      cliente.contactoEmergencia?.telefono
                         ? `${cliente.contactoEmergencia.nombre} (${cliente.contactoEmergencia.relacion}) - ${cliente.contactoEmergencia.telefono}`
                         : 'No especificado'
                     }

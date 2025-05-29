@@ -48,6 +48,7 @@ import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
 import config from '../../config';
+import authService, { AuthError } from '../../services/authService';
 
 interface DentistaFormFields {
   userId: string;
@@ -62,7 +63,6 @@ interface DentistaFormFields {
 
 interface NuevoUsuarioFields {
   nombre: string;
-  apellidos: string;
   email: string;
   telefono: string;
   password: string;
@@ -76,10 +76,8 @@ interface FormErrors {
   titulo?: string;
   numeroColegiado?: string;
   añosExperiencia?: string;
-  biografia?: string;
-  nuevoUsuario?: {
+  biografia?: string;  nuevoUsuario?: {
     nombre?: string;
-    apellidos?: string;
     email?: string;
     telefono?: string;
     password?: string;
@@ -106,8 +104,14 @@ interface UserResponse {
 
 interface ApiError {
   response?: {
+    status?: number;
     data?: {
       message?: string;
+      errors?: Array<{
+        campo: string;
+        mensaje: string;
+        codigo: string;
+      }>;
     };
   };
 }
@@ -230,10 +234,8 @@ const DentistaForm = () => {
   const [horarios, setHorarios] = useState<HorarioItem[]>([
     { inicio: '09:00', fin: '14:00', dias: [1, 2, 3, 4, 5] }
   ]);
-  const [isCreatingNewUser, setIsCreatingNewUser] = useState(false);
-  const [nuevoUsuario, setNuevoUsuario] = useState<NuevoUsuarioFields>({
+  const [isCreatingNewUser, setIsCreatingNewUser] = useState(false);  const [nuevoUsuario, setNuevoUsuario] = useState<NuevoUsuarioFields>({
     nombre: '',
-    apellidos: '',
     email: '',
     telefono: '',
     password: ''
@@ -272,7 +274,7 @@ const DentistaForm = () => {
             .filter(userId => userId !== currentUserId);
 
           const usersAvailable = allUsers.filter(user => 
-            !dentistaUserIds.includes(user.id) || user.id === currentUserId
+            !dentistaUserIds.includes(user.id.toString()) || user.id.toString() === currentUserId.toString()
           );
           
           console.log('Usuario actual ID:', currentUserId);
@@ -283,7 +285,7 @@ const DentistaForm = () => {
           const dentistaUserIds = dentistas.map(dentista => dentista.userId);
           console.log('UserIDs ya asignados a dentistas:', dentistaUserIds);
           
-          const usersAvailable = allUsers.filter(user => !dentistaUserIds.includes(user.id));
+          const usersAvailable = allUsers.filter(user => !dentistaUserIds.includes(user.id.toString()));
           console.log('Usuarios disponibles para asignar:', usersAvailable.length);
           setAvailableUsers(usersAvailable);
         }
@@ -375,28 +377,49 @@ const DentistaForm = () => {
   const validateForm = (): boolean => {
     const errors: FormErrors = {};
     
-    if (!formData.userId) {
+    // Validar usuario seleccionado o nuevo usuario
+    if (!formData.userId && !isCreatingNewUser) {
       errors.userId = 'Debe seleccionar un usuario';
     }
     
+    // Validar especialidad
     if (!formData.especialidad.trim()) {
       errors.especialidad = 'La especialidad es requerida';
     }
     
-    try {
-      if (formData.horarioTrabajo) {
-        JSON.parse(formData.horarioTrabajo);
+    // Validar horarios
+    if (!horarios || horarios.length === 0) {
+      errors.horarioTrabajo = 'Debe especificar al menos un horario de trabajo';
+    } else {
+      // Verificar que cada horario tenga días y horas válidas
+      const horarioInvalido = horarios.some(h => 
+        !h.inicio || !h.fin || !h.dias || h.dias.length === 0
+      );
+
+      if (horarioInvalido) {
+        errors.horarioTrabajo = 'Todos los horarios deben tener hora de inicio, fin y al menos un día seleccionado';
       }
-    } catch (e) {
-      errors.horarioTrabajo = 'El formato del horario es inválido';
     }
     
+    // Validar estado
     if (!formData.status) {
       errors.status = 'El estado es requerido';
     }
     
-    // Validar que años de experiencia sea un número
-    if (formData.añosExperiencia && isNaN(Number(formData.añosExperiencia))) {
+    // Validar número de colegiado
+    if (!formData.numeroColegiado?.trim()) {
+      errors.numeroColegiado = 'El número de colegiado es requerido';
+    }
+    
+    // Validar título
+    if (!formData.titulo?.trim()) {
+      errors.titulo = 'El título es requerido';
+    }
+    
+    // Validar años de experiencia
+    if (!formData.añosExperiencia) {
+      errors.añosExperiencia = 'Los años de experiencia son requeridos';
+    } else if (isNaN(Number(formData.añosExperiencia))) {
       errors.añosExperiencia = 'Debe ser un número';
     }
     
@@ -418,7 +441,7 @@ const DentistaForm = () => {
     setSelectedUser(newValue);
     setFormData({
       ...formData,
-      userId: newValue?.id || ''
+      userId: newValue?.id.toString() || ''
     });
   };
 
@@ -431,9 +454,13 @@ const DentistaForm = () => {
 
   const validateNuevoUsuario = (): boolean => {
     const errors: FormErrors['nuevoUsuario'] = {};
-    
+      // Validate nombre
     if (!nuevoUsuario.nombre) {
       errors.nombre = 'El nombre es requerido';
+    } else if (nuevoUsuario.nombre.length < 2) {
+      errors.nombre = 'El nombre debe tener al menos 2 caracteres';
+    } else if (nuevoUsuario.nombre.length > 100) {
+      errors.nombre = 'El nombre no puede tener más de 100 caracteres';
     }
     
     if (!nuevoUsuario.email) {
@@ -444,13 +471,14 @@ const DentistaForm = () => {
     
     if (!nuevoUsuario.password) {
       errors.password = 'La contraseña es requerida';
-    } else if (nuevoUsuario.password.length < 8) {
-      errors.password = 'La contraseña debe tener al menos 8 caracteres';
-    }
-    
-    if (nuevoUsuario.telefono && !/^[0-9]{8}$/.test(nuevoUsuario.telefono)) {
-      errors.telefono = 'El teléfono debe tener 8 dígitos';
-    }
+    } else if (nuevoUsuario.password.length < 6) {
+      errors.password = 'La contraseña debe tener al menos 6 caracteres';
+    }      // Updated phone validation to match backend requirements
+      if (nuevoUsuario.telefono) {
+        if (!/^[0-9+\-\s]+$/i.test(nuevoUsuario.telefono)) {
+          errors.telefono = 'El teléfono solo puede contener números, +, - y espacios';
+        }
+      }
     
     setFormErrors(prev => ({
       ...prev,
@@ -476,20 +504,41 @@ const DentistaForm = () => {
     setSuccess(false);
     
     try {
-      let userId = formData.userId;
-      
-      if (isCreatingNewUser) {
-        const nuevoUsuarioData = {
-          ...nuevoUsuario,
+      let userId = formData.userId;      if (isCreatingNewUser) {
+        // Register the user first through auth service
+        const registerData = {
+          nombre: nuevoUsuario.nombre,  // Use only nombre since there's no apellidos field in DB
+          email: nuevoUsuario.email,
+          password: nuevoUsuario.password,
+          passwordConfirm: nuevoUsuario.password,  // Add passwordConfirm field to match backend validation
+          telefono: nuevoUsuario.telefono,
           rol: 'dentista' as const,
-          estado: 'activo' as const
         };
-        
-        const usuarioCreado = await usuarioService.crearUsuario(nuevoUsuarioData);
-        userId = usuarioCreado.id;
+          try {
+          const registerResponse = await authService.register(registerData);
+          userId = registerResponse.data.id.toString();
+        } catch (error: any) {
+          console.error('Error al registrar dentista:', error);
+          
+          // Handle validation errors
+          if (error instanceof AuthError && error.statusCode === 422) {
+            setError('Error de validación: ' + error.message);
+          } else if (error.response?.data?.errors) {
+            // Format validation errors from backend
+            const errorMessages = error.response.data.errors
+              .map((err: any) => `${err.mensaje} (${err.campo})`)
+              .join(', ');
+            setError(`Error de validación: ${errorMessages}`);
+          } else {
+            setError(error.message || 'Error al registrar el usuario');
+          }
+          
+          setLoading(false);
+          return;
+        }
       }
 
-      // Validar que haya al menos un horario válido
+      // Validate that at least one valid schedule exists
       const horariosValidos = horarios.some(h => 
         h.inicio && h.fin && h.dias && h.dias.length > 0
       );
@@ -500,49 +549,45 @@ const DentistaForm = () => {
         return;
       }
 
-      const horarioTrabajoBD = convertirHorarioFrontendaBD(horarios);
-
-      // Validar que el horario convertido no esté vacío
-      if (Object.keys(horarioTrabajoBD).length === 0) {
-        setError('El horario de trabajo no puede estar vacío');
-        setLoading(false);
-        return;
-      }
-
-      const dentistaData: DentistaCreacionDatos = {
-        userId: userId.toString(),
-        especialidad: formData.especialidad.trim(),
+      const horarioTrabajoBD = convertirHorarioFrontendaBD(horarios);      // Now create the dentist profile
+      const dentistaData = {
+        userId,
+        especialidad: formData.especialidad,
         horarioTrabajo: horarioTrabajoBD,
         status: formData.status,
-        titulo: formData.titulo?.trim() || undefined,
-        numeroColegiado: formData.numeroColegiado?.trim() || undefined,
+        titulo: formData.titulo,
+        numeroColegiado: formData.numeroColegiado,
         añosExperiencia: formData.añosExperiencia ? parseInt(formData.añosExperiencia) : undefined,
-        biografia: formData.biografia?.trim() || undefined
+        biografia: formData.biografia
       };
 
-      // Agregar logs para debugging
-      console.log('Enviando datos al backend:', {
-        url: `${config.API_BASE_URL}/dentistas`,
-        data: dentistaData,
-        horarioTrabajo: horarioTrabajoBD
-      });
-      
       if (isEditMode && id) {
         await dentistaService.actualizarDentista(id, dentistaData);
+        // addNotification('Dentista actualizado con éxito', 'success');
       } else {
         await dentistaService.crearDentista(dentistaData);
+        // addNotification('Dentista creado con éxito', 'success');
       }
-      
+
       setSuccess(true);
       setTimeout(() => {
         navigate('/dentistas');
       }, 1500);
-      
-    } catch (error) {
+        } catch (error) {
       console.error('Error al guardar dentista:', error);
       const apiError = error as ApiError;
-      if (apiError.response?.data?.message) {
+      
+      // Handle different types of errors
+      if (apiError.response?.status === 422 && apiError.response.data?.errors) {
+        // Format validation errors
+        const errorMessages = apiError.response.data.errors
+          .map((err: any) => `${err.mensaje} (${err.campo})`)
+          .join('\n');
+        setError(`Error de validación:\n${errorMessages}`);
+      } else if (apiError.response?.data?.message) {
         setError(apiError.response.data.message);
+      } else if (error instanceof AuthError) {
+        setError(error.message);
       } else {
         setError('No se pudo guardar la información del dentista. Verifica que el servidor esté corriendo en el puerto correcto.');
       }
@@ -722,23 +767,14 @@ const DentistaForm = () => {
                 )}
               </Box>
             ) : (
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <TextField
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>                <TextField
                   fullWidth
-                  label="Nombre"
+                  label="Nombre Completo"
                   value={nuevoUsuario.nombre}
                   onChange={handleNuevoUsuarioChange('nombre')}
                   error={!!formErrors.nuevoUsuario?.nombre}
-                  helperText={formErrors.nuevoUsuario?.nombre}
+                  helperText={formErrors.nuevoUsuario?.nombre || 'Ingrese el nombre completo (entre 2 y 100 caracteres)'}
                   required
-                />
-                <TextField
-                  fullWidth
-                  label="Apellidos"
-                  value={nuevoUsuario.apellidos}
-                  onChange={handleNuevoUsuarioChange('apellidos')}
-                  error={!!formErrors.nuevoUsuario?.apellidos}
-                  helperText={formErrors.nuevoUsuario?.apellidos}
                 />
                 <TextField
                   fullWidth
@@ -750,14 +786,12 @@ const DentistaForm = () => {
                   helperText={formErrors.nuevoUsuario?.email}
                   required
                 />
-                <TextField
-                  fullWidth
+                <TextField                  fullWidth
                   label="Teléfono"
                   value={nuevoUsuario.telefono}
                   onChange={handleNuevoUsuarioChange('telefono')}
                   error={!!formErrors.nuevoUsuario?.telefono}
-                  helperText={formErrors.nuevoUsuario?.telefono}
-                  placeholder="Ejemplo: 12345678"
+                  helperText={formErrors.nuevoUsuario?.telefono || 'Puede contener números, +, - y espacios'}
                 />
                 <TextField
                   fullWidth
@@ -766,8 +800,11 @@ const DentistaForm = () => {
                   value={nuevoUsuario.password}
                   onChange={handleNuevoUsuarioChange('password')}
                   error={!!formErrors.nuevoUsuario?.password}
-                  helperText={formErrors.nuevoUsuario?.password}
+                  helperText={formErrors.nuevoUsuario?.password || 'Mínimo 6 caracteres'} 
                   required
+                  inputProps={{
+                    minLength: 6
+                  }}
                 />
               </Box>
             )}
@@ -795,6 +832,51 @@ const DentistaForm = () => {
               </Box>
 
               <Box sx={{ flexGrow: 1, minWidth: 300 }}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Número de Colegiado"
+                  name="numeroColegiado"
+                  value={formData.numeroColegiado}
+                  onChange={handleChange}
+                  error={!!formErrors.numeroColegiado}
+                  helperText={formErrors.numeroColegiado}
+                />
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ flexGrow: 1, minWidth: 300 }}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Título"
+                  name="titulo"
+                  value={formData.titulo}
+                  onChange={handleChange}
+                  error={!!formErrors.titulo}
+                  helperText={formErrors.titulo}
+                />
+              </Box>
+
+              <Box sx={{ flexGrow: 1, minWidth: 300 }}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Años de Experiencia"
+                  name="añosExperiencia"
+                  type="number"
+                  value={formData.añosExperiencia}
+                  onChange={handleChange}
+                  error={!!formErrors.añosExperiencia}
+                  helperText={formErrors.añosExperiencia}
+                  inputProps={{ min: 0 }}
+                />
+              </Box>
+            </Box>
+
+            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
+              <Box sx={{ flexGrow: 1 }}>
                 <FormControl fullWidth error={!!formErrors.status} required>
                   <InputLabel id="status-label">Estado</InputLabel>
                   <Select
@@ -815,137 +897,58 @@ const DentistaForm = () => {
               </Box>
             </Box>
 
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ flexGrow: 1, minWidth: 300 }}>
-                <TextField
-                  fullWidth
-                  label="Título"
-                  name="titulo"
-                  value={formData.titulo}
-                  onChange={handleChange}
-                />
-              </Box>
-
-              <Box sx={{ flexGrow: 1, minWidth: 300 }}>
-                <TextField
-                  fullWidth
-                  label="Número de Colegiado"
-                  name="numeroColegiado"
-                  value={formData.numeroColegiado}
-                  onChange={handleChange}
-                />
-              </Box>
-            </Box>
-
-            <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 2 }}>
-              <Box sx={{ flexGrow: 1, minWidth: 300 }}>
-                <TextField
-                  fullWidth
-                  type="number"
-                  label="Años de Experiencia"
-                  name="añosExperiencia"
-                  value={formData.añosExperiencia}
-                  onChange={handleChange}
-                  error={!!formErrors.añosExperiencia}
-                  helperText={formErrors.añosExperiencia}
-                />
-              </Box>
-
-              <Box sx={{ flexGrow: 1, minWidth: 300 }}>
-                <TextField
-                  fullWidth
-                  multiline
-                  rows={4}
-                  label="Biografía"
-                  name="biografia"
-                  value={formData.biografia}
-                  onChange={handleChange}
-                />
-              </Box>
-            </Box>
-
-            {/* Sección de horario */}
             <Box>
               <Typography variant="h6" gutterBottom sx={{ mt: 2 }}>
-                Horario de Trabajo
+                Horario de Trabajo *
               </Typography>
+              <FormHelperText error={!!formErrors.horarioTrabajo}>
+                {formErrors.horarioTrabajo || 'Seleccione al menos un horario y días'}
+              </FormHelperText>
               <Divider sx={{ mb: 2 }} />
-              
-              <LocalizationProvider dateAdapter={AdapterDayjs}>
-                <TableContainer component={Paper} sx={{ mb: 2 }}>
-                  <Table size="small">
-                    <TableHead>
-                      <TableRow>
-                        <TableCell>Horario</TableCell>
-                        <TableCell>Días</TableCell>
-                        <TableCell align="right">Acciones</TableCell>
-                      </TableRow>
-                    </TableHead>
-                    <TableBody>
-                      {horarios.map((horario, index) => (
-                        <TableRow key={index}>
-                          <TableCell>
-                            <Stack direction="row" spacing={2} alignItems="center">
-                              <TimePicker
-                                label="Hora inicio"
-                                value={dayjs(`2024-01-01T${horario.inicio}`)}
-                                onChange={(newValue) => {
-                                  if (newValue) {
-                                    handleHorarioChange(index, 'inicio', newValue.format('HH:mm'));
-                                  }
-                                }}
-                              />
-                              <Typography>-</Typography>
-                              <TimePicker
-                                label="Hora fin"
-                                value={dayjs(`2024-01-01T${horario.fin}`)}
-                                onChange={(newValue) => {
-                                  if (newValue) {
-                                    handleHorarioChange(index, 'fin', newValue.format('HH:mm'));
-                                  }
-                                }}
-                              />
-                            </Stack>
-                          </TableCell>
-                          <TableCell>
-                            <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                              {diasSemana.map((dia) => (
-                                <Chip
-                                  key={dia.id}
-                                  label={dia.nombre}
-                                  onClick={() => handleToggleDia(index, dia.id)}
-                                  color={horario.dias.includes(dia.id) ? "primary" : "default"}
-                                  variant={horario.dias.includes(dia.id) ? "filled" : "outlined"}
-                                  size="small"
-                                />
-                              ))}
-                            </Box>
-                          </TableCell>
-                          <TableCell align="right">
-                            <IconButton 
-                              color="error" 
-                              onClick={() => eliminarHorario(index)}
-                              disabled={horarios.length === 1}
-                            >
-                              <DeleteIcon />
-                            </IconButton>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </TableContainer>
-              </LocalizationProvider>
-              
-              <Button
-                startIcon={<AddIcon />}
-                onClick={agregarHorario}
-                variant="outlined"
-                size="small"
-              >
-                Agregar Horario
-              </Button>
             </Box>
+
+            {horarios.map((horario, index) => (
+              <Box key={index} sx={{ mb: 2 }}>
+                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
+                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+                    <TimePicker
+                      label="Hora de inicio"
+                      value={dayjs(`2000-01-01T${horario.inicio}`)}
+                      onChange={(newValue) => handleHorarioChange(index, 'inicio', newValue?.format('HH:mm') || '')}
+                      slotProps={{
+                        textField: {
+                          fullWidth: true,
+                          required: true
+                        }
+                      }}
+                    />
+                    <TimePicker
+                      label="Hora de fin"
+                      value={dayjs(`2000-01-01T${horario.fin}`)}
+                      onChange={(newValue) => handleHorarioChange(index, 'fin', newValue?.format('HH:mm') || '')}
+                      slotProps={{
+                        textField: {
+                          fullWidth: true,
+                          required: true
+                        }
+                      }}
+                    />
+                  </LocalizationProvider>
+                </Box>
+                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                  {diasSemana.map((dia) => (
+                    <Chip
+                      key={dia.id}
+                      label={dia.nombre}
+                      onClick={() => handleToggleDia(index, dia.id)}
+                      color={horario.dias.includes(dia.id) ? "primary" : "default"}
+                      variant={horario.dias.includes(dia.id) ? "filled" : "outlined"}
+                      size="small"
+                    />
+                  ))}
+                </Box>
+              </Box>
+            ))}
 
             {/* Botones de acción */}
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>

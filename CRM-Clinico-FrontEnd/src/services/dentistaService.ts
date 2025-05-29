@@ -13,7 +13,6 @@ export interface Dentista {
     email: string;
     telefono?: string;
     avatar?: string;
-    activo?: boolean;
   };
   especialidad: string;
   horarioTrabajo: {
@@ -26,7 +25,6 @@ export interface Dentista {
   biografia?: string;
   createdAt?: string;
   updatedAt?: string;
-  activo: boolean;
 }
 
 export interface DisponibilidadSlot {
@@ -45,7 +43,26 @@ export interface Especialidad {
   nombre: string;
 }
 
-export type DentistaCreacionDatos = Omit<Dentista, 'id' | 'usuario' | 'createdAt' | 'updatedAt'>;
+export interface DentistaCreacionUsuario {
+  nombre: string;
+  apellidos?: string;
+  email: string;
+  password: string;
+  telefono?: string;
+}
+
+export interface DentistaCreacionDatos {
+  userId: string;
+  especialidad: string;
+  horarioTrabajo: {
+    [key: string]: Array<{ inicio: string; fin: string }>;
+  };
+  status: 'activo' | 'inactivo' | 'vacaciones';
+  titulo?: string;
+  numeroColegiado?: string;
+  añosExperiencia?: number;
+  biografia?: string;
+}
 
 export interface HorarioTrabajo {
   [dia: string]: Array<DisponibilidadSlot>;
@@ -193,8 +210,16 @@ const dentistaService = {
   
   // Crear un nuevo dentista
   crearDentista: async (datos: DentistaCreacionDatos, config?: AxiosRequestConfig) => {
-    const response = await api.post<{ status: string; data: Dentista }>('/dentistas', datos, config);
-    return response.data.data;
+    try {
+      console.log('Enviando datos de dentista al servidor:', JSON.stringify(datos, null, 2));
+      const response = await api.post<{ status: string; data: Dentista }>('/dentistas', datos, config);
+      console.log('Respuesta del servidor:', response.data);
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error al crear dentista:', error);
+      console.error('Detalles del error:', error.response?.data);
+      throw error;
+    }
   },
   // Obtener dentistas disponibles para una fecha específica
   obtenerDentistasDisponibles: async (fecha: string, config?: AxiosRequestConfig) => {
@@ -240,8 +265,7 @@ const dentistaService = {
       // Filtramos los dentistas activos en el frontend
       const dentistas = response.data.data.filter(dentista => 
         dentista.status === 'activo' && 
-        dentista.usuario && 
-        dentista.usuario.activo !== false
+        dentista.usuario
       );
 
       console.log(`Se encontraron ${dentistas.length} dentistas activos:`, dentistas);

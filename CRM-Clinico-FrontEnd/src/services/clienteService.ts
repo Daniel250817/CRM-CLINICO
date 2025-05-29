@@ -72,7 +72,6 @@ export interface Cliente {
   codigoPostal?: string;
   ocupacion?: string;
   estadoCivil?: string;
-  telefonoEmergencia?: string;
   contactoEmergencia?: {
     nombre: string;
     telefono: string;
@@ -158,7 +157,6 @@ export interface RegistroClienteDTO {
   codigoPostal: string;
   ocupacion: string;
   estadoCivil: string;
-  telefonoEmergencia: string;  // Siempre enviar como string, vacío si no hay valor
   contactoEmergencia: {
     nombre: string;
     telefono: string;
@@ -186,7 +184,6 @@ export interface ActualizarClienteDTO {
   codigoPostal: string;
   ocupacion: string;
   estadoCivil: string;
-  telefonoEmergencia: string; // Siempre enviar como string, vacío si no hay valor
   contactoEmergencia: {
     nombre: string;
     telefono: string;
@@ -228,27 +225,17 @@ const adaptClienteToUI = (cliente: ClienteAPI): Cliente => {
     codigoPostal: cliente.codigoPostal || '',
     ocupacion: cliente.ocupacion || '',
     estadoCivil: cliente.estadoCivil || '',
-    telefonoEmergencia: cliente.telefonoEmergencia || cliente.contactoEmergencia?.telefono || '',
     contactoEmergencia: cliente.contactoEmergencia ? {
       nombre: cliente.contactoEmergencia.nombre || '',
       telefono: cliente.contactoEmergencia.telefono || '',
       relacion: cliente.contactoEmergencia.relacion || ''
-    } : {
-      nombre: '',
-      telefono: '',
-      relacion: ''
-    },
+    } : undefined,
     historialMedico: cliente.historialMedico ? {
       alergias: cliente.historialMedico.alergias || '',
       enfermedadesCronicas: cliente.historialMedico.enfermedadesCronicas || '',
       medicamentosActuales: cliente.historialMedico.medicamentosActuales || '',
       cirugiasPrevias: cliente.historialMedico.cirugiasPrevias || ''
-    } : {
-      alergias: '',
-      enfermedadesCronicas: '',
-      medicamentosActuales: '',
-      cirugiasPrevias: ''
-    }
+    } : undefined
   };
 };
 

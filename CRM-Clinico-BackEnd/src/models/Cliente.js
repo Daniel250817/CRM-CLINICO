@@ -97,40 +97,30 @@ module.exports = (sequelize) => {
     ocupacion: {
       type: DataTypes.STRING(100),
       allowNull: true
-    },
-    estadoCivil: {
+    },    estadoCivil: {
       type: DataTypes.ENUM('soltero', 'casado', 'divorciado', 'viudo'),
-      allowNull: true
-    },
-    contactoEmergencia: {
+      allowNull: false,
+      validate: {
+        notNull: { msg: 'El estado civil es requerido' },
+        notEmpty: { msg: 'El estado civil es requerido' }
+      }
+    },    contactoEmergencia: {
       type: DataTypes.TEXT,
       allowNull: true,
       validate: {
         isValidContacto(value) {
-          if (!value) return; // Si es null o undefined, no validar
-          
+          if (!value) return;
           try {
             const contacto = JSON.parse(value);
-            if (!contacto.telefono) return;
-            
-            // Validar que el teléfono tenga entre 8 y 9 dígitos numéricos
-            const telefonoRegex = /^[0-9]{8,9}$/;
-            if (!telefonoRegex.test(contacto.telefono)) {
-              throw new Error('El teléfono del contacto de emergencia debe contener entre 8 y 9 dígitos numéricos');
+            const nombreRelacion = contacto.nombre && contacto.relacion;
+            if (!nombreRelacion) {
+              throw new Error('El nombre y la relación del contacto de emergencia son requeridos cuando se proporciona');
+            }
+            if (contacto.telefono && !/^[0-9]{8}$/.test(contacto.telefono)) {
+              throw new Error('El teléfono de emergencia debe contener exactamente 8 dígitos numéricos');
             }
           } catch (error) {
             throw new Error(error.message || 'El formato del contacto de emergencia es inválido');
-          }
-        }
-      }
-    },    telefonoEmergencia: {
-      type: DataTypes.STRING(8),
-      allowNull: true, // Changed to true to make it optional
-      validate: {
-        isOptionalPhone(value) {
-          if (!value) return; // Skip validation if empty
-          if (!/^[0-9]{8}$/.test(value)) {
-            throw new Error('El teléfono debe contener exactamente 8 dígitos numéricos');
           }
         }
       }
