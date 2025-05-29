@@ -72,6 +72,7 @@ export interface Cliente {
   codigoPostal?: string;
   ocupacion?: string;
   estadoCivil?: string;
+  telefonoEmergencia?: string;
   contactoEmergencia?: {
     nombre: string;
     telefono: string;
@@ -152,22 +153,23 @@ export interface RegistroClienteDTO {
     fechaNacimiento: string | null;
     genero: string;
   };
-  direccion: string | null;
-  ciudad: string | null;
-  codigoPostal: string | null;
-  ocupacion: string | null;
-  estadoCivil: string | null;
+  direccion: string;
+  ciudad: string;
+  codigoPostal: string;
+  ocupacion: string;
+  estadoCivil: string;
+  telefonoEmergencia: string;  // Siempre enviar como string, vacío si no hay valor
   contactoEmergencia: {
     nombre: string;
     telefono: string;
     relacion: string;
-  } | null;
+  };
   historialMedico: {
-    alergias: string | null;
-    enfermedadesCronicas: string | null;
-    medicamentosActuales: string | null;
-    cirugiasPrevias: string | null;
-  } | null;
+    alergias: string;
+    enfermedadesCronicas: string;
+    medicamentosActuales: string;
+    cirugiasPrevias: string;
+  };
 }
 
 export interface ActualizarClienteDTO {
@@ -179,21 +181,22 @@ export interface ActualizarClienteDTO {
     fechaNacimiento: string | null;
     genero: string;
   };
-  direccion: string | null;
-  ciudad: string | null;
-  codigoPostal: string | null;
-  ocupacion: string | null;
-  estadoCivil: string | null;
+  direccion: string;
+  ciudad: string;
+  codigoPostal: string;
+  ocupacion: string;
+  estadoCivil: string;
+  telefonoEmergencia: string; // Siempre enviar como string, vacío si no hay valor
   contactoEmergencia: {
     nombre: string;
     telefono: string;
     relacion: string;
-  } | null;
+  };
   historialMedico: {
-    alergias: string | null;
-    enfermedadesCronicas: string | null;
-    medicamentosActuales: string | null;
-    cirugiasPrevias: string | null;
+    alergias: string;
+    enfermedadesCronicas: string;
+    medicamentosActuales: string;
+    cirugiasPrevias: string;
   };
 }
 
@@ -225,7 +228,16 @@ const adaptClienteToUI = (cliente: ClienteAPI): Cliente => {
     codigoPostal: cliente.codigoPostal || '',
     ocupacion: cliente.ocupacion || '',
     estadoCivil: cliente.estadoCivil || '',
-    contactoEmergencia: cliente.contactoEmergencia || undefined,
+    telefonoEmergencia: cliente.telefonoEmergencia || cliente.contactoEmergencia?.telefono || '',
+    contactoEmergencia: cliente.contactoEmergencia ? {
+      nombre: cliente.contactoEmergencia.nombre || '',
+      telefono: cliente.contactoEmergencia.telefono || '',
+      relacion: cliente.contactoEmergencia.relacion || ''
+    } : {
+      nombre: '',
+      telefono: '',
+      relacion: ''
+    },
     historialMedico: cliente.historialMedico ? {
       alergias: cliente.historialMedico.alergias || '',
       enfermedadesCronicas: cliente.historialMedico.enfermedadesCronicas || '',

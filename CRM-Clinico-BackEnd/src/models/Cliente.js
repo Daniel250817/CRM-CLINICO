@@ -123,13 +123,16 @@ module.exports = (sequelize) => {
           }
         }
       }
-    },
-    telefonoEmergencia: {
+    },    telefonoEmergencia: {
       type: DataTypes.STRING(8),
-      allowNull: false,
+      allowNull: true, // Changed to true to make it optional
       validate: {
-        is: /^[0-9]{8}$/,
-        msg: 'El teléfono debe contener exactamente 8 dígitos numéricos'
+        isOptionalPhone(value) {
+          if (!value) return; // Skip validation if empty
+          if (!/^[0-9]{8}$/.test(value)) {
+            throw new Error('El teléfono debe contener exactamente 8 dígitos numéricos');
+          }
+        }
       }
     },
     ultimaVisita: {

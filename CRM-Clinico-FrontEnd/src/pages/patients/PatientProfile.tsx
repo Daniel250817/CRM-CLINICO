@@ -164,7 +164,12 @@ const PatientProfile = () => {
   // Cargar las citas del paciente
   useEffect(() => {
     const fetchCitas = async () => {
-      if (!id) return;
+      // Validar que el ID sea válido antes de hacer la petición
+      if (!id || id === 'undefined' || id === 'null') {
+        setErrorCitas('ID de paciente no válido para cargar citas');
+        setLoadingCitas(false);
+        return;
+      }
       
       try {
         setLoadingCitas(true);
@@ -393,6 +398,19 @@ const PatientProfile = () => {
                   <ListItemText 
                     primary="Dirección"
                     secondary={cliente.direccion || 'No especificada'}
+                  />
+                </ListItem>
+                <ListItem>
+                  <ListItemIcon>
+                    <PhoneIcon color="warning" />
+                  </ListItemIcon>
+                  <ListItemText 
+                    primary="Contacto de Emergencia"
+                    secondary={
+                      cliente.contactoEmergencia
+                        ? `${cliente.contactoEmergencia.nombre} (${cliente.contactoEmergencia.relacion}) - ${cliente.contactoEmergencia.telefono}`
+                        : 'No especificado'
+                    }
                   />
                 </ListItem>
               </List>

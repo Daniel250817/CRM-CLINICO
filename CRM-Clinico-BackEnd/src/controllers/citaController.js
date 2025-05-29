@@ -447,11 +447,10 @@ class CitaController {
 
   /**
    * Actualizar fecha y hora de una cita
-   */
-  static async actualizarFechaHoraCita(req, res, next) {
+   */  static async actualizarFechaHoraCita(req, res, next) {
     try {
       const { id } = req.params;
-      const { fechaHora, duracion } = req.body;
+      const { fechaHora, duracion, notas } = req.body;
 
       // Buscar la cita
       const cita = await db.Cita.findByPk(id, {
@@ -520,12 +519,11 @@ class CitaController {
       
       if (citasConflicto) {
         return next(new ValidationError(`Ya existe una cita programada en ese horario`));
-      }
-
-      // Actualizar la cita
+      }      // Actualizar la cita
       await cita.update({
         fechaHora,
-        ...(duracion && { duracion })
+        ...(duracion && { duracion }),
+        ...(notas !== undefined && { notas })
       });
 
       // Obtener la cita actualizada con todas sus relaciones

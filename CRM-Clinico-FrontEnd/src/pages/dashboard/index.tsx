@@ -554,7 +554,7 @@ const Dashboard = () => {
                       <TableCell>Hora</TableCell>
                       <TableCell>Servicio</TableCell>
                       <TableCell>Estado</TableCell>
-                      <TableCell align="right">Acciones</TableCell>
+                      {/* <TableCell align="right">Acciones</TableCell> */}
                     </TableRow>
                   </TableHead>
                   <TableBody>
@@ -605,9 +605,9 @@ const Dashboard = () => {
                               size="small"
                             />
                           </TableCell>
-                          <TableCell align="right">
+                          {/* <TableCell align="right">
                             <Button size="small" variant="outlined">Ver</Button>
-                          </TableCell>
+                          </TableCell> */}
                         </TableRow>
                       ))
                     )}
@@ -639,7 +639,7 @@ const Dashboard = () => {
                         <TableCell>Servicio</TableCell>
                         <TableCell>Dentista</TableCell>
                         <TableCell>Estado</TableCell>
-                        <TableCell align="right">Acciones</TableCell>
+                        {/* <TableCell align="right">Acciones</TableCell> */}
                       </TableRow>
                     </TableHead>
                     <TableBody>
@@ -673,9 +673,9 @@ const Dashboard = () => {
                               size="small"
                             />
                           </TableCell>
-                          <TableCell align="right">
+                          {/* <TableCell align="right">
                             <Button size="small" variant="outlined">Ver</Button>
-                          </TableCell>
+                          </TableCell> */}
                         </TableRow>
                       ))}
                     </TableBody>

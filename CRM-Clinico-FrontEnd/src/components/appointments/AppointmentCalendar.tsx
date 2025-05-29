@@ -94,7 +94,7 @@ interface Appointment {
   patient: string;
   dentist: string;
   service: string;
-  status: 'pending' | 'confirmed' | 'completed' | 'cancelled';
+  status: 'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió';
   notes?: string;
 }
 
@@ -854,6 +854,7 @@ const AppointmentCalendar = () => {
       console.log('Moviendo cita:', {
         citaId,
         nuevaFecha: dayjs(nuevaFecha).format('YYYY-MM-DD HH:mm:ss'),
+        nuevaFechaISO: nuevaFecha.toISOString(),
         duracion
       });
 
@@ -863,7 +864,7 @@ const AppointmentCalendar = () => {
       // Mostrar notificación de éxito
       addNotification('Cita actualizada exitosamente', 'success');
 
-      // Actualizar la lista de próximas citas
+      // Actualizar la lista de próximas citas y el calendario
       const nuevasProximasCitas = await citaService.obtenerCitas({
         params: {
           desde: new Date().toISOString(),
@@ -871,15 +872,63 @@ const AppointmentCalendar = () => {
         }
       });
       setProximasCitas(nuevasProximasCitas.slice(0, 5));
+      
+      // Refrescar los eventos del calendario
+      await actualizarEventosCalendario();
     } catch (error: any) {
       console.error('Error al mover cita:', error);
       
       // Revertir el cambio en el calendario
       dropInfo.revert();
       
-      // Mostrar mensaje de error
-      const errorMessage = error.response?.data?.message || error.message || 'Error al actualizar la cita';
+      // Mostrar mensaje de error detallado
+      let errorMessage = 'Error al actualizar la cita';
+      
+      if (error.response) {
+        console.log('Error response:', error.response);
+        // Si es un error del servidor con datos
+        if (error.response.data && error.response.data.message) {
+          errorMessage = `Error: ${error.response.data.message}`;
+        } else if (error.response.status === 400) {
+          errorMessage = 'Error: La fecha y hora seleccionada no es válida o está fuera del horario del dentista';
+        } else if (error.response.status === 409) {
+          errorMessage = 'Error: Ya existe una cita programada en ese horario';
+        }
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
       addNotification(errorMessage, 'error');
+    }
+  };
+
+  // Actualizar eventos del calendario
+  const actualizarEventosCalendario = async () => {
+    try {
+      const response = await citaService.obtenerCitas();
+      
+      // Transformar las citas al formato que espera FullCalendar
+      const events = response.map(cita => ({
+        id: cita.id,
+        title: cita.servicio.nombre,
+        start: cita.fechaHora,
+        end: new Date(new Date(cita.fechaHora).getTime() + cita.duracion * 60000).toISOString(),
+        extendedProps: {
+          status: cita.estado,
+          patient: cita.cliente.usuario.nombre,
+          dentist: cita.dentista.usuario.nombre,
+          service: cita.servicio.nombre,
+          duration: cita.duracion
+        },
+        className: `event-${cita.estado}`
+      }));
+      
+      setCalendarEvents(events);
+      return events;
+    } catch (error) {
+      console.error('Error al actualizar eventos del calendario:', error);
+      addNotification('No se pudieron actualizar los eventos del calendario', 'error');
+      return [];
     }
   };
 
@@ -894,6 +943,7 @@ const AppointmentCalendar = () => {
       console.log('Redimensionando cita:', {
         citaId,
         fechaInicio: dayjs(fechaInicio).format('YYYY-MM-DD HH:mm:ss'),
+        fechaInicioISO: fechaInicio.toISOString(),
         duracion
       });
 
@@ -902,14 +952,32 @@ const AppointmentCalendar = () => {
 
       // Mostrar notificación de éxito
       addNotification('Duración de la cita actualizada exitosamente', 'success');
+      
+      // Refrescar los eventos del calendario
+      await actualizarEventosCalendario();
     } catch (error: any) {
       console.error('Error al redimensionar cita:', error);
       
       // Revertir el cambio
       resizeInfo.revert();
       
-      // Mostrar mensaje de error
-      const errorMessage = error.response?.data?.message || error.message || 'Error al actualizar la duración de la cita';
+      // Mostrar mensaje de error detallado
+      let errorMessage = 'Error al actualizar la duración de la cita';
+      
+      if (error.response) {
+        console.log('Error response:', error.response);
+        // Si es un error del servidor con datos
+        if (error.response.data && error.response.data.message) {
+          errorMessage = `Error: ${error.response.data.message}`;
+        } else if (error.response.status === 400) {
+          errorMessage = 'Error: La duración seleccionada no es válida o está fuera del horario del dentista';
+        } else if (error.response.status === 409) {
+          errorMessage = 'Error: La nueva duración genera un conflicto con otra cita programada';
+        }
+      } else if (error.message) {
+        errorMessage = `Error: ${error.message}`;
+      }
+      
       addNotification(errorMessage, 'error');
     }
   };
@@ -932,7 +1000,7 @@ const AppointmentCalendar = () => {
   };
 
   // Función para manejar la edición de cita
-  const handleEditAppointment = () => {
+  const handleEditAppointment = async () => {
     try {
       if (!selectedAppointment) {
         console.error('No hay cita seleccionada');
@@ -945,48 +1013,64 @@ const AppointmentCalendar = () => {
         return;
       }
       
-      console.log('Preparando edición de cita:', selectedAppointment);
-      console.log('Lista de pacientes disponibles:', patients.map(p => ({
-        id: p.id,
-        nombre: p.usuario?.nombre,
-        nombreCompleto: `${p.usuario?.nombre || ''} ${p.usuario?.apellidos || ''}`.trim()
-      })));
+      // Primero, obtener los detalles completos de la cita para tener el ID del paciente
+      console.log('Obteniendo detalles completos de la cita ID:', selectedAppointmentId);
+      let citaCompleta;
       
-      // Buscar paciente de forma más flexible
-      const pacienteSeleccionado = patients.find(p => {
-        const nombrePaciente = `${p.usuario?.nombre || ''} ${p.usuario?.apellidos || ''}`.trim().toLowerCase();
-        const nombreBuscado = selectedAppointment.patient.toLowerCase().trim();
-        
-        console.log('Comparando nombres:', {
-          nombrePaciente,
-          nombreBuscado,
-          coincide: nombrePaciente.includes(nombreBuscado) || nombreBuscado.includes(nombrePaciente)
+      try {
+        citaCompleta = await citaService.obtenerCitaPorId(selectedAppointmentId || '');
+        console.log('Detalles completos de la cita:', citaCompleta);
+      } catch (error) {
+        console.error('Error al obtener detalles de la cita:', error);
+        addNotification('No se pudieron obtener los detalles completos de la cita', 'error');
+        return;
+      }
+      
+      // Con el ID del cliente, buscar el paciente directamente
+      const pacienteSeleccionado = patients.find(p => p.id === citaCompleta.cliente.id);
+      console.log('Paciente encontrado por ID:', pacienteSeleccionado);
+      
+      // Si no se encuentra el paciente por ID, intentar buscar por nombre como fallback
+      let pacientePorNombre = null;
+      if (!pacienteSeleccionado) {
+        pacientePorNombre = patients.find(p => {
+          const nombrePaciente = `${p.usuario?.nombre || ''} ${p.usuario?.apellidos || ''}`.trim().toLowerCase();
+          const nombreBuscado = selectedAppointment.patient.toLowerCase().trim();
+          return nombrePaciente.includes(nombreBuscado) || nombreBuscado.includes(nombrePaciente);
         });
-        
-        return nombrePaciente.includes(nombreBuscado) || nombreBuscado.includes(nombrePaciente);
-      });
+        console.log('Paciente encontrado por nombre como fallback:', pacientePorNombre);
+      }
 
-      // Buscar dentista
-      const dentistaSeleccionado = dentistas.find(d => {
-        const nombreDentista = d.usuario?.nombre?.toLowerCase().trim() || '';
-        const nombreBuscado = selectedAppointment.dentist.toLowerCase().trim();
-        return nombreDentista.includes(nombreBuscado) || nombreBuscado.includes(nombreDentista);
-      });
+      // Buscar dentista por ID y luego por nombre como fallback
+      let dentistaSeleccionado = dentistas.find(d => d.id === citaCompleta.dentista.id);
+      if (!dentistaSeleccionado) {
+        dentistaSeleccionado = dentistas.find(d => {
+          const nombreDentista = d.usuario?.nombre?.toLowerCase().trim() || '';
+          const nombreBuscado = selectedAppointment.dentist.toLowerCase().trim();
+          return nombreDentista.includes(nombreBuscado) || nombreBuscado.includes(nombreDentista);
+        });
+      }
+      console.log('Dentista seleccionado:', dentistaSeleccionado);
 
-      // Buscar servicio
-      const servicioSeleccionado = services.find(s => {
-        const nombreServicio = s.nombre.toLowerCase().trim();
-        const nombreBuscado = selectedAppointment.service.toLowerCase().trim();
-        return nombreServicio === nombreBuscado || selectedAppointment.title.toLowerCase().includes(nombreServicio);
-      });
+      // Buscar servicio por ID y luego por nombre como fallback
+      let servicioSeleccionado = services.find(s => s.id === citaCompleta.servicio.id);
+      if (!servicioSeleccionado) {
+        servicioSeleccionado = services.find(s => {
+          const nombreServicio = s.nombre.toLowerCase().trim();
+          const nombreBuscado = selectedAppointment.service.toLowerCase().trim();
+          return nombreServicio === nombreBuscado || selectedAppointment.title.toLowerCase().includes(nombreServicio);
+        });
+      }
+      console.log('Servicio seleccionado:', servicioSeleccionado);
 
       // Si no se encuentra el paciente pero sí el dentista y el servicio, mostrar selector manual
-      if (!pacienteSeleccionado && dentistaSeleccionado && servicioSeleccionado) {
+      if (!pacienteSeleccionado && !pacientePorNombre && dentistaSeleccionado && servicioSeleccionado) {
         const tempData = {
           dentist: dentistaSeleccionado.id,
           service: servicioSeleccionado.id.toString(),
           dateTime: dayjs(selectedAppointment.start),
-          duration: dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute'),
+          duration: typeof selectedAppointment.end === 'string' && typeof selectedAppointment.start === 'string' ? 
+            dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute') : 30,
           notes: selectedAppointment.notes || ''
         };
         
@@ -1008,11 +1092,13 @@ const AppointmentCalendar = () => {
 
       // Si todo está bien, proceder con la edición
       const newData = {
-        patient: pacienteSeleccionado!.id,
+        patient: (pacienteSeleccionado || pacientePorNombre)!.id,
         dentist: dentistaSeleccionado.id,
         service: servicioSeleccionado.id.toString(),
         dateTime: dayjs(selectedAppointment.start),
-        duration: dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute'),
+        duration: typeof selectedAppointment.end === 'string' && typeof selectedAppointment.start === 'string' ? 
+          dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute') : 
+          citaCompleta.duracion || 30,
         notes: selectedAppointment.notes || ''
       };
 
@@ -1058,11 +1144,47 @@ const AppointmentCalendar = () => {
   // Función para actualizar una cita
   const handleUpdateAppointment = async () => {
     try {
-      if (!selectedAppointmentId || !newAppointmentData.dateTime) return;
+      if (!selectedAppointmentId) {
+        addNotification('Error: ID de cita no encontrado', 'error');
+        return;
+      }
+      
+      if (!newAppointmentData.dateTime) {
+        addNotification('Error: Debe seleccionar fecha y hora', 'error');
+        return;
+      }
+      
+      if (!newAppointmentData.patient) {
+        addNotification('Error: Debe seleccionar un paciente', 'error');
+        return;
+      }
+      
+      if (!newAppointmentData.dentist) {
+        addNotification('Error: Debe seleccionar un dentista', 'error');
+        return;
+      }
+      
+      if (!newAppointmentData.service) {
+        addNotification('Error: Debe seleccionar un servicio', 'error');
+        return;
+      }
+
+      // Mostrar indicador de carga durante la actualización
+      addNotification('Actualizando cita...', 'info');
 
       // Convertir la fecha local a UTC
       const fechaLocal = dayjs.tz(newAppointmentData.dateTime, dayjs.tz.guess());
       const fechaUTC = fechaLocal.tz('UTC');
+      
+      console.log('Actualizando cita con datos:', {
+        id: selectedAppointmentId,
+        fechaLocal: fechaLocal.format('YYYY-MM-DD HH:mm:ss'),
+        fechaUTC: fechaUTC.format('YYYY-MM-DD HH:mm:ss'),
+        clienteId: newAppointmentData.patient,
+        dentistaId: newAppointmentData.dentist,
+        servicioId: newAppointmentData.service,
+        duracion: newAppointmentData.duration
+      });
 
       const citaActualizada = {
         clienteId: Number(newAppointmentData.patient),
@@ -1070,32 +1192,14 @@ const AppointmentCalendar = () => {
         servicioId: Number(newAppointmentData.service),
         fechaHora: fechaUTC.toISOString(),
         duracion: Number(newAppointmentData.duration),
-        notas: newAppointmentData.notes.trim(),
+        notas: newAppointmentData.notes?.trim() || '',
       };
 
       const response = await citaService.actualizarCita(selectedAppointmentId, citaActualizada);
+      console.log('Respuesta de actualización de cita:', response);
 
-      // Actualizar el evento en el calendario
-      setCalendarEvents(prevEvents => {
-        const index = prevEvents.findIndex(event => event.id === selectedAppointmentId);
-        if (index === -1) return prevEvents;
-
-        const updatedEvents = [...prevEvents];
-        updatedEvents[index] = {
-          ...updatedEvents[index],
-          start: response.fechaHora,
-          end: dayjs(response.fechaHora).add(response.duracion, 'minute').toISOString(),
-          title: response.servicio.nombre,
-          extendedProps: {
-            ...updatedEvents[index].extendedProps,
-            patient: response.cliente.usuario.nombre,
-            dentist: response.dentista.usuario.nombre,
-            service: response.servicio.nombre,
-            duration: response.duracion
-          }
-        };
-        return updatedEvents;
-      });
+      // Actualizar todos los eventos del calendario
+      await actualizarEventosCalendario();
 
       // Actualizar las próximas citas
       const nuevasProximasCitas = await citaService.obtenerCitas({
@@ -1108,9 +1212,25 @@ const AppointmentCalendar = () => {
 
       addNotification('Cita actualizada exitosamente', 'success');
       setOpenEditAppointment(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al actualizar la cita:', error);
-      addNotification('Error al actualizar la cita', 'error');
+      
+      let mensajeError = 'Error al actualizar la cita';
+      
+      if (error.response) {
+        console.log('Error response:', error.response);
+        if (error.response.data && error.response.data.message) {
+          mensajeError = `Error: ${error.response.data.message}`;
+        } else if (error.response.status === 400) {
+          mensajeError = 'Error: Los datos de la cita no son válidos';
+        } else if (error.response.status === 409) {
+          mensajeError = 'Error: La fecha y hora seleccionada genera un conflicto con otra cita';
+        }
+      } else if (error.message) {
+        mensajeError = `Error: ${error.message}`;
+      }
+      
+      addNotification(mensajeError, 'error');
     }
   };
 
@@ -1672,15 +1792,17 @@ const AppointmentCalendar = () => {
                       borderRadius: '50%',
                       mr: 1,
                       bgcolor: 
-                        selectedAppointment.status === 'confirmed' ? 'success.main' :
-                        selectedAppointment.status === 'pending' ? 'warning.main' :
-                        selectedAppointment.status === 'completed' ? 'info.main' : 'error.main'
+                        selectedAppointment.status === 'confirmada' ? 'success.main' :
+                        selectedAppointment.status === 'pendiente' ? 'warning.main' :
+                        selectedAppointment.status === 'completada' ? 'info.main' : 
+                        selectedAppointment.status === 'no asistió' ? 'grey.500' : 'error.main'
                     }}
                   />
                   <Typography variant="subtitle1" color="text.secondary">
-                    {selectedAppointment.status === 'confirmed' ? 'Confirmada' :
-                     selectedAppointment.status === 'pending' ? 'Pendiente' :
-                     selectedAppointment.status === 'completed' ? 'Completada' : 'Cancelada'}
+                    {selectedAppointment.status === 'confirmada' ? 'Confirmada' :
+                     selectedAppointment.status === 'pendiente' ? 'Pendiente' :
+                     selectedAppointment.status === 'completada' ? 'Completada' : 
+                     selectedAppointment.status === 'no asistió' ? 'No Asistió' : 'Cancelada'}
                   </Typography>
                 </Box>
 
