@@ -279,7 +279,7 @@ class DentistaController {
         include: {
           model: db.Usuario,
           as: 'usuario',
-          attributes: ['id', 'nombre', 'email', 'telefono', 'activo']
+          attributes: ['id', 'nombre', 'email', 'telefono']
         },
         order: [[{ model: db.Usuario, as: 'usuario' }, 'nombre', 'ASC']]
       });
@@ -329,6 +329,9 @@ class DentistaController {
    */
   static async crearDentista(req, res, next) {
     try {
+      // Agregar log para depuración
+      console.log('Datos recibidos para crear dentista:', JSON.stringify(req.body, null, 2));
+
       const { 
         userId,
         especialidad,
@@ -385,6 +388,17 @@ class DentistaController {
       }
 
       // Crear el dentista
+      console.log('Creando dentista con datos:', {
+        userId,
+        especialidad,
+        horarioTrabajo: JSON.stringify(horarioTrabajo),
+        status,
+        titulo,
+        numeroColegiado,
+        añosExperiencia,
+        biografia
+      });
+
       const dentista = await db.Dentista.create({
         userId,
         especialidad,

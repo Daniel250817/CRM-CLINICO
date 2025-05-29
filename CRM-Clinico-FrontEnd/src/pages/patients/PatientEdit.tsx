@@ -209,7 +209,7 @@ const PatientEdit = () => {
     e.preventDefault();
     if (!id) return;
 
-    // Validar ambos teléfonos antes de enviar
+    // Validar teléfonos
     if (!validatePhone(formData.telefono, 'telefono') || 
         (formData.contactoEmergencia.telefono && 
          !validatePhone(formData.contactoEmergencia.telefono, 'contactoEmergencia.telefono'))) {
@@ -220,33 +220,30 @@ const PatientEdit = () => {
     setError(null);
 
     try {
-      // Convertir los datos del formulario al formato esperado por la API
       const datosActualizados: ActualizarClienteDTO = {
         usuario: {
-          nombre: formData.nombre,
-          apellidos: formData.apellidos,
+          nombre: formData.nombre.trim(),
+          apellidos: formData.apellidos.trim(),
           email: formData.email.trim(),
-          telefono: formData.telefono,
+          telefono: formData.telefono.trim(),
           fechaNacimiento: formData.fechaNacimiento?.format('YYYY-MM-DD') || null,
           genero: formData.genero
         },
-        direccion: formData.direccion || '',
-        ciudad: formData.ciudad || '',
-        codigoPostal: formData.codigoPostal || '',
-        ocupacion: formData.ocupacion || '',
+        direccion: formData.direccion.trim() || '',
+        ciudad: formData.ciudad.trim() || '',
+        codigoPostal: formData.codigoPostal.trim() || '',
+        ocupacion: formData.ocupacion.trim() || '',
         estadoCivil: formData.estadoCivil || '',
-        // Asignamos telefonoEmergencia para compatibilidad con backend
-        telefonoEmergencia: formData.contactoEmergencia.telefono || '',
         contactoEmergencia: {
-          nombre: formData.contactoEmergencia.nombre || '',
-          telefono: formData.contactoEmergencia.telefono || '',
-          relacion: formData.contactoEmergencia.relacion || ''
+          nombre: formData.contactoEmergencia.nombre.trim() || '',
+          telefono: formData.contactoEmergencia.telefono.trim() || '',
+          relacion: formData.contactoEmergencia.relacion.trim() || ''
         },
         historialMedico: {
-          alergias: formData.historialMedico.alergias || '',
-          enfermedadesCronicas: formData.historialMedico.enfermedadesCronicas || '',
-          medicamentosActuales: formData.historialMedico.medicamentosActuales || '',
-          cirugiasPrevias: formData.historialMedico.cirugiasPrevias || ''
+          alergias: formData.historialMedico.alergias.trim() || '',
+          enfermedadesCronicas: formData.historialMedico.enfermedadesCronicas.trim() || '',
+          medicamentosActuales: formData.historialMedico.medicamentosActuales.trim() || '',
+          cirugiasPrevias: formData.historialMedico.cirugiasPrevias.trim() || ''
         }
       };
 
@@ -256,31 +253,24 @@ const PatientEdit = () => {
     } catch (err: any) {
       console.error('Error al actualizar paciente:', err);
       
-      // Manejar errores de validación
       if (err.response?.status === 422) {
         const errorData = err.response.data;
         
         if (errorData.errors && Array.isArray(errorData.errors)) {
-          // Si hay errores específicos de campo
           const errorMessages = errorData.errors.map((error: any) => {
-            // Si el error es de email, mostrar mensaje más amigable
             if (error.field === 'email') {
               return error.message;
             }
             return `${error.message} (${error.field})`;
           }).join('\n');
           setError(errorMessages);
-          
-          // Mostrar notificación
           addNotification(errorMessages, 'error');
         } else {
-          // Si es un mensaje de error general
           const errorMessage = errorData.message || 'Error al actualizar el paciente. Por favor, revise los datos ingresados.';
           setError(errorMessage);
           addNotification(errorMessage, 'error');
         }
       } else {
-        // Otros tipos de errores
         const errorMessage = 'Error al actualizar el paciente. Por favor, intente nuevamente.';
         setError(errorMessage);
         addNotification(errorMessage, 'error');
@@ -503,9 +493,9 @@ const PatientEdit = () => {
                       value={formData.contactoEmergencia.telefono}
                       onChange={(e) => handleInputChange('contactoEmergencia.telefono', e.target.value)}
                       error={!!errors['contactoEmergencia.telefono']}
-                      helperText={errors['contactoEmergencia.telefono']}
+                      helperText={errors['contactoEmergencia.telefono'] || 'Ingrese 8 dígitos numéricos'}
                       inputProps={{
-                        maxLength: 9,
+                        maxLength: 8,
                         inputMode: 'numeric',
                         pattern: '[0-9]*'
                       }}
@@ -609,4 +599,4 @@ const PatientEdit = () => {
   );
 };
 
-export default PatientEdit; 
+export default PatientEdit;

@@ -43,14 +43,29 @@ export interface ApiResponse<T> {
   data: T;
 }
 
+// Define RegisterData interface for user registration
+export interface RegisterData {
+  nombre: string;
+  email: string;
+  password: string;
+  passwordConfirm: string;
+  telefono?: string;
+  rol?: 'admin' | 'dentista' | 'asistente' | 'cliente';
+}
+
 export class AuthError extends Error {
+  public code?: string;
+  public statusCode?: number;
+
   constructor(
     message: string,
-    public code?: string,
-    public statusCode?: number
+    code?: string,
+    statusCode?: number
   ) {
     super(message);
     this.name = 'AuthError';
+    this.code = code;
+    this.statusCode = statusCode;
   }
 }
 
@@ -328,7 +343,28 @@ const authService = {
       console.error('Error al obtener settings del usuario:', error);
       throw error;
     }
-  }
+  },
+
+  // Registrar usuario
+  register: async (data: RegisterData): Promise<ApiResponse<User>> => {
+    try {
+      const response = await api.post<ApiResponse<User>>('/auth/register', data);
+      return response.data;
+    } catch (error: any) {
+      // Handle validation errors (422)
+      if (error.response?.status === 422) {
+        console.error('Error de validación:', error.response.data);
+        throw new AuthError(
+          error.response.data.message || 'Error de validación en los datos enviados',
+          'VALIDATION_ERROR',
+          422
+        );
+      }
+      // Re-throw other errors
+      throw error;
+    }
+  },
 };
 
+export { authService };
 export default authService;

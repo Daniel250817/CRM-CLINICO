@@ -145,8 +145,6 @@ const PatientRegistration = () => {
         codigoPostal: formData.codigoPostal.trim() || '',
         ocupacion: formData.ocupacion.trim() || '',
         estadoCivil: formData.estadoCivil || '',
-        // Siempre enviar telefonoEmergencia como string vacío si no hay valor
-        telefonoEmergencia: formData.contactoEmergencia.telefono.trim() || '',
         contactoEmergencia: {
           nombre: formData.contactoEmergencia.nombre.trim() || '',
           telefono: formData.contactoEmergencia.telefono.trim() || '',
@@ -161,12 +159,12 @@ const PatientRegistration = () => {
       };
 
       try {
-      const nuevoCliente = await clienteService.registrarCliente(registroData);
-      addNotification('Paciente registrado exitosamente', 'success');
-      navigate(`/patients/${nuevoCliente.id}`);
+        const nuevoCliente = await clienteService.registrarCliente(registroData);
+        addNotification('Paciente registrado exitosamente', 'success');
+        navigate(`/patients/${nuevoCliente.id}`);
       } catch (err: any) {
-      console.error('Error al registrar paciente:', err);
-        
+        console.error('Error al registrar paciente:', err);
+          
         // Manejar errores de validación
         if (err.response?.status === 422) {
           const errores = err.response.data.errors;
@@ -409,7 +407,12 @@ const PatientRegistration = () => {
                       label="Teléfono del Contacto"
                       value={formData.contactoEmergencia.telefono}
                       onChange={(e) => handleInputChange('contactoEmergencia.telefono', e.target.value)}
-                      helperText="Debe contener exactamente 8 dígitos numéricos"
+                      inputProps={{
+                        maxLength: 8,
+                        inputMode: 'numeric',
+                        pattern: '[0-9]*'
+                      }}
+                      helperText="Ingrese 8 dígitos numéricos"
                     />
                   </Grid>
 
@@ -510,4 +513,4 @@ const PatientRegistration = () => {
   );
 };
 
-export default PatientRegistration; 
+export default PatientRegistration;

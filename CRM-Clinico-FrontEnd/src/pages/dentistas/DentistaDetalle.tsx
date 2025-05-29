@@ -24,6 +24,7 @@ import {
   TableContainer,
   TableHead,
   TableRow,
+  Stack,
 } from '@mui/material';
 import {
   Person as PersonIcon,
@@ -115,7 +116,11 @@ const DentistaDetalle = () => {
 
   // Renderizar el horario de trabajo
   const renderHorarioTrabajo = () => {
-    if (!dentista.horarioTrabajo || Object.keys(dentista.horarioTrabajo).length === 0) {
+    const horarioParseado = typeof dentista.horarioTrabajo === 'string' 
+      ? JSON.parse(dentista.horarioTrabajo) 
+      : dentista.horarioTrabajo;
+
+    if (!horarioParseado || Object.keys(horarioParseado).length === 0) {
       return <Typography color="text.secondary">No hay horarios configurados</Typography>;
     }
 
@@ -129,6 +134,14 @@ const DentistaDetalle = () => {
       sabado: 'Sábado'
     };
     
+    // Ordenar los días según el orden de la semana
+    const diasOrdenados = ['lunes', 'martes', 'miercoles', 'jueves', 'viernes', 'sabado', 'domingo'];
+    const horarioOrdenado = diasOrdenados.filter(dia => horarioParseado[dia] && horarioParseado[dia].length > 0);
+    
+    if (horarioOrdenado.length === 0) {
+      return <Typography color="text.secondary">No hay horarios configurados</Typography>;
+    }
+
     return (
       <TableContainer>
         <Table size="small">
@@ -139,15 +152,17 @@ const DentistaDetalle = () => {
             </TableRow>
           </TableHead>
           <TableBody>
-            {Object.entries(dentista.horarioTrabajo).map(([dia, horarios]) => (
+            {horarioOrdenado.map(dia => (
               <TableRow key={dia}>
                 <TableCell>{diasSemana[dia as keyof typeof diasSemana]}</TableCell>
                 <TableCell>
-                  {horarios.map((horario, index) => (
-                    <Typography key={index} component="div">
-                      {horario.inicio} - {horario.fin}
-                    </Typography>
-                  ))}
+                  <Stack spacing={1}>
+                    {horarioParseado[dia].map((horario: { inicio: string; fin: string }, index: number) => (
+                      <Typography key={index} component="div">
+                        {horario.inicio} - {horario.fin}
+                      </Typography>
+                    ))}
+                  </Stack>
                 </TableCell>
               </TableRow>
             ))}
