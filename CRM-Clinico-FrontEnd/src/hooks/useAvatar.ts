@@ -1,7 +1,4 @@
-import { api } from '../services/api';
-
-export const useAvatar = () => {
-  const getAvatarUrl = (avatarPath: string | undefined | null): string => {
+export const useAvatar = () => {const getAvatarUrl = (avatarPath: string | undefined | null): string => {
     // Si no hay avatar, retornar la imagen por defecto
     if (!avatarPath) {
       return '/default-avatar.png';
@@ -15,8 +12,8 @@ export const useAvatar = () => {
       }
 
       // Obtener la base URL del API
-      const baseUrl = api.baseURL || 'http://localhost:3001';
-
+      const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+      
       // Remover '/api' del final de la URL base si existe
       const cleanBaseUrl = baseUrl.replace(/\/api\/?$/, '');
 

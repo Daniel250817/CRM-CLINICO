@@ -1,7 +1,10 @@
 const db = require('../models');
 const logger = require('../utils/logger');
 const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
-const { Op } = require('sequelize');
+const { Op, Sequelize } = require('sequelize');
+
+// Añadimos Sequelize al objeto db para facilitar su uso
+db.Sequelize = Sequelize;
 
 // Para PayPal, vamos a usar una configuración más simple por ahora
 const PAYPAL_CONFIG = {
@@ -111,9 +114,46 @@ class FacturaController {  /**
       }
 
       // Generar concepto automáticamente
-      const concepto = `Servicios dentales - ${serviciosFactura.map(s => s.nombre).join(', ')}`;
-
+      const concepto = `Servicios dentales - ${serviciosFactura.map(s => s.nombre).join(', ')}`;      // Generar número de factura
+      const ahora = new Date();
+      const año = ahora.getFullYear();
+      const mes = String(ahora.getMonth() + 1).padStart(2, '0');
+      const día = String(ahora.getDate()).padStart(2, '0');
+      
+      let numeroFactura;
+      try {
+        // Buscar la última factura del día para obtener el número consecutivo
+        const ultimaFactura = await db.Factura.findOne({
+          where: {
+            numeroFactura: {
+              [db.Sequelize.Op.like]: `FAC-${año}${mes}${día}-%`
+            }
+          },
+          order: [['numeroFactura', 'DESC']]
+        });
+        
+        let contador = 1;
+        if (ultimaFactura) {
+          // Extraer el contador de la última parte del número de factura
+          const partes = ultimaFactura.numeroFactura.split('-');
+          const ultimaParte = partes[partes.length - 1];
+          const ultimoContador = parseInt(ultimaParte);
+          
+          // Verificar que sea un número válido
+          if (!isNaN(ultimoContador)) {
+            contador = ultimoContador + 1;
+          }
+        }
+        
+        numeroFactura = `FAC-${año}${mes}${día}-${String(contador).padStart(3, '0')}`;
+      } catch (err) {
+        logger.error(`Error al generar número de factura: ${err.message}`);
+        // Generar un número aleatorio como fallback para evitar errores
+        const random = Math.floor(Math.random() * 10000).toString().padStart(4, '0');
+        numeroFactura = `FAC-${año}${mes}${día}-${random}`;
+      }
       const factura = await db.Factura.create({
+        numeroFactura,
         citaId: cita.id,
         clienteId: clienteId,
         dentistaId: dentistaId,
@@ -176,7 +216,7 @@ class FacturaController {  /**
       const offset = (page - 1) * limit;
       const whereClause = {};
 
-      if (estado) whereClause.estado = estado;
+      if (estado) whereClause.estadoPago = estado;
       if (clienteId) whereClause.clienteId = clienteId;
       if (dentistaId) whereClause.dentistaId = dentistaId;      if (fechaInicio && fechaFin) {
         whereClause.fechaCreacion = {
@@ -572,6 +612,45 @@ class FacturaController {  /**
       });
     } catch (error) {
       logger.error(`Error al cancelar factura: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Obtener facturas agrupadas por mes
+   */
+  static async obtenerFacturasPorMes(req, res, next) {
+    try {
+      const { anio } = req.query;
+      const currentYear = anio ? parseInt(anio) : new Date().getFullYear();
+      
+      // Obtener los últimos 6 meses de facturas agrupadas por mes
+      const facturasPorMes = await db.sequelize.query(`
+        SELECT 
+          DATE_FORMAT(createdAt, '%Y-%m') AS yearMonth,
+          DATE_FORMAT(createdAt, '%M') AS mes,
+          COUNT(*) AS cantidad,
+          SUM(total) AS total
+        FROM facturas
+        WHERE 
+          YEAR(createdAt) = :currentYear
+        GROUP BY yearMonth, mes
+        ORDER BY yearMonth DESC
+        LIMIT 6
+      `, {
+        replacements: { currentYear },
+        type: db.sequelize.QueryTypes.SELECT
+      });
+
+      // Ordenar por mes cronológicamente (de más antiguo a más reciente)
+      const facturasPorMesOrdenadas = [...facturasPorMes].reverse();
+      
+      res.status(200).json({
+        status: 'success',
+        data: facturasPorMesOrdenadas
+      });
+    } catch (error) {
+      logger.error(`Error al obtener facturas por mes: ${error}`);
       next(error);
     }
   }
