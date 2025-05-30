@@ -499,4 +499,49 @@ router.post('/:id/mark-paid', facturaController.marcarComoPagada);
  */
 router.post('/:id/cancel', facturaController.cancelarFactura);
 
+/**
+ * @swagger
+ * /api/facturas/por-mes:
+ *   get:
+ *     summary: Obtener facturas agrupadas por mes
+ *     tags: [Facturas]
+ *     description: Retorna datos de facturación agrupados por mes para los últimos 6 meses
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: query
+ *         name: anio
+ *         schema:
+ *           type: integer
+ *         required: false
+ *         description: Año para el que se quieren obtener los datos (opcional, por defecto es el año actual)
+ *     responses:
+ *       200:
+ *         description: Datos de facturación agrupados por mes
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: success
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       mes:
+ *                         type: string
+ *                       yearMonth:
+ *                         type: string
+ *                       cantidad:
+ *                         type: integer
+ *                       total:
+ *                         type: number
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+router.get('/por-mes', restringirA('admin', 'dentista'), facturaController.obtenerFacturasPorMes);
+
 module.exports = router;

@@ -272,20 +272,42 @@ class FacturaService {
               break;
           }
         });
-        
-        // Calcular promedio por factura
+          // Calcular promedio por factura
         const totalFacturas = backendData.resumen?.totalFacturas || 0;
         if (totalFacturas > 0) {
           result.promedioPorFactura = result.totalFacturado / totalFacturas;
         }
-        
-        // Generar datos ficticios para los últimos 6 meses (hasta implementar en el backend)
-        const meses = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio'];
-        result.facturasPorMes = meses.map((mes) => ({
-          mes,
-          total: Math.round((result.totalFacturado / 6) * (0.7 + Math.random() * 0.6)),
-          cantidad: Math.round((totalFacturas / 6) * (0.7 + Math.random() * 0.6))
-        }));
+          // Obtener datos de facturas por mes desde el backend
+        try {
+          const mesResponse = await api.get<{status: string; data: {mes: string; yearMonth: string; cantidad: number; total: number}[]}>(`${this.apiPath}/por-mes`);
+          if (mesResponse.data && mesResponse.data.status === 'success') {
+            result.facturasPorMes = mesResponse.data.data.map(item => ({
+              mes: item.mes,
+              total: parseFloat(String(item.total)) || 0,
+              cantidad: parseInt(String(item.cantidad)) || 0
+            }));
+            
+            // Si no hay datos, mostrar mensaje en consola
+            if (result.facturasPorMes.length === 0) {
+              console.warn('No se encontraron datos de facturas por mes');
+            }
+          } else {
+            console.error('Respuesta inesperada del servidor al obtener facturas por mes', mesResponse.data);
+            result.facturasPorMes = [];
+          }
+        } catch (error: any) {
+          console.error('Error al obtener facturas por mes:', error);
+          // Registrar más detalles del error para depuración
+          if (error.response) {
+            console.error('Respuesta del servidor:', error.response.status, error.response.data);
+          } else if (error.request) {
+            console.error('No se recibió respuesta del servidor');
+          } else {
+            console.error('Error de configuración de la petición:', error.message);
+          }
+          // Si falla, dejar el arreglo vacío
+          result.facturasPorMes = [];
+        }
         
         // Estimar crecimiento mensual
         if (result.facturasPorMes.length >= 2) {

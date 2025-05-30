@@ -195,7 +195,7 @@ const DentistaDetalle = () => {
         <Box sx={{ display: 'flex', alignItems: 'flex-start', flexWrap: 'wrap', gap: 3 }}>
           {/* Avatar y datos principales */}
           <UserAvatar
-            avatarPath={dentista.usuario?.settings?.avatar}
+            avatarPath={dentista.usuario?.avatar}
             userName={dentista.usuario?.nombre}
             sx={{ width: 120, height: 120, mr: 3 }}
           />

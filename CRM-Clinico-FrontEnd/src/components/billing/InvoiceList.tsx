@@ -336,8 +336,7 @@ const InvoiceList: React.FC = () => {
                       </Typography>
                     </TableCell>
                     <TableCell>
-                      {factura.cliente?.nombre} {factura.cliente?.apellidos}
-                    </TableCell>
+                      {factura.cliente?.nombre} {factura.cliente?.apellidos}                    </TableCell>
                     <TableCell>
                       Dr. {factura.dentista?.nombre} {factura.dentista?.apellidos}
                     </TableCell>
@@ -346,7 +345,7 @@ const InvoiceList: React.FC = () => {
                     </TableCell>
                     <TableCell align="right">
                       <Typography variant="body2" fontWeight="bold">
-                        ${factura.total?.toFixed(2)}
+                        ${parseFloat(String(factura.total || 0)).toFixed(2)}
                       </Typography>
                     </TableCell>
                     <TableCell>

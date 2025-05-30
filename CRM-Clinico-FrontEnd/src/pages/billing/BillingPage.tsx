@@ -28,7 +28,8 @@ import {
   Title,
   Tooltip as ChartTooltip,
   Legend,
-  ArcElement
+  ArcElement,
+  Filler
 } from 'chart.js';
 
 import InvoiceList from '../../components/billing/InvoiceList';
@@ -39,6 +40,7 @@ ChartJS.register(
   CategoryScale,
   LinearScale,
   BarElement,
+  Filler,
   LineElement,
   PointElement,
   Title,
@@ -107,40 +109,70 @@ const BillingPage: React.FC = () => {
 
   useEffect(() => {
     cargarEstadisticas();
-  }, []);
-  const cargarEstadisticas = async () => {
+  }, []);  const cargarEstadisticas = async () => {
     try {
       setLoading(true);
       const response = await facturaService.obtenerEstadisticas();
       setEstadisticas(response.data);
+      
+      // Log para verificar los datos recibidos del backend
+      console.log('Datos de facturas recibidos:', response.data);
+      console.log('Facturas por mes:', response.data.facturasPorMes);
     } catch (err: any) {
       console.error('Error al cargar estadísticas:', err);
+      // Mostrar información más detallada del error para depuración
+      if (err.response) {
+        console.error('Error de respuesta:', err.response.status, err.response.data);
+      } else if (err.request) {
+        console.error('No se recibió respuesta del servidor');
+      } else {
+        console.error('Error de configuración de la petición:', err.message);
+      }
     } finally {
       setLoading(false);
     }
   };
-
+  // Función para formatear las etiquetas de meses
+  const formatearEtiquetasMeses = (meses: string[]) => {
+    // Si no hay datos, mostrar los últimos 6 meses desde la fecha actual
+    if (meses.length === 0) {
+      const today = new Date();
+      return Array.from({length: 6}, (_, i) => {
+        const d = new Date();
+        d.setMonth(today.getMonth() - 5 + i);
+        return d.toLocaleString('es', { month: 'long' });
+      });
+    }
+    return meses;
+  };
   // Datos para gráfico de barras (ingresos mensuales)
   const ingresosMensualesData = {
-    labels: estadisticas?.facturasPorMes.map(item => item.mes) || [],
+    labels: formatearEtiquetasMeses(estadisticas?.facturasPorMes?.map(item => item.mes) || []),
     datasets: [
       {
         label: 'Ingresos ($)',
-        data: estadisticas?.facturasPorMes.map(item => item.total) || [],
+        data: estadisticas?.facturasPorMes?.map(item => item.total) || Array(6).fill(0),
         backgroundColor: 'rgba(25, 118, 210, 0.8)',
         borderColor: 'rgba(25, 118, 210, 1)',
         borderWidth: 1
       }
     ]
   };
+  
+  // Registro para monitorear si hay datos para los gráficos
+  if (!estadisticas?.facturasPorMes?.length) {
+    console.log('No hay datos de facturas por mes disponibles');
+  } else {
+    console.log('Datos para gráficos:', estadisticas.facturasPorMes.length, 'meses encontrados');
+  }
 
   // Datos para gráfico de línea (cantidad de facturas)
   const facturasMensualesData = {
-    labels: estadisticas?.facturasPorMes.map(item => item.mes) || [],
+    labels: formatearEtiquetasMeses(estadisticas?.facturasPorMes?.map(item => item.mes) || []),
     datasets: [
       {
         label: 'Cantidad de Facturas',
-        data: estadisticas?.facturasPorMes.map(item => item.cantidad) || [],
+        data: estadisticas?.facturasPorMes?.map(item => item.cantidad) || Array(6).fill(0),
         borderColor: 'rgba(76, 175, 80, 1)',
         backgroundColor: 'rgba(76, 175, 80, 0.1)',
         tension: 0.4,
@@ -182,6 +214,27 @@ const BillingPage: React.FC = () => {
         position: 'top' as const,
       }
     }
+  };
+
+  // Para mostrar mensaje de carga en los gráficos
+  const renderChartOrLoading = (chart: React.ReactNode) => {
+    if (loading) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" height="250px">
+          <Typography variant="subtitle1" color="text.secondary">Cargando datos...</Typography>
+        </Box>
+      );
+    }
+    
+    if (!estadisticas?.facturasPorMes?.length) {
+      return (
+        <Box display="flex" justifyContent="center" alignItems="center" height="250px">
+          <Typography variant="subtitle1" color="text.secondary">No hay datos disponibles</Typography>
+        </Box>
+      );
+    }
+    
+    return chart;
   };
 
   if (loading) {
@@ -238,7 +291,9 @@ const BillingPage: React.FC = () => {
             Ingresos Mensuales
           </Typography>
           <Box height="90%">
-            <Bar data={ingresosMensualesData} options={chartOptions} />
+            {renderChartOrLoading(
+              <Bar data={ingresosMensualesData} options={chartOptions} />
+            )}
           </Box>
         </Paper>
 
@@ -248,7 +303,9 @@ const BillingPage: React.FC = () => {
             Facturas por Mes
           </Typography>
           <Box height="90%">
-            <Line data={facturasMensualesData} options={chartOptions} />
+            {renderChartOrLoading(
+              <Line data={facturasMensualesData} options={chartOptions} />
+            )}
           </Box>
         </Paper>
 
@@ -256,20 +313,21 @@ const BillingPage: React.FC = () => {
         <Paper sx={{ p: 2, height: 400 }}>
           <Typography variant="h6" gutterBottom>
             Distribución por Estado
-          </Typography>
-          <Box height="90%">
-            <Doughnut 
-              data={facturasPorEstadoData} 
-              options={{
-                ...chartOptions,
-                plugins: {
-                  ...chartOptions.plugins,
-                  legend: {
-                    position: 'bottom' as const,
+          </Typography>          <Box height="90%">
+            {renderChartOrLoading(
+              <Doughnut 
+                data={facturasPorEstadoData} 
+                options={{
+                  ...chartOptions,
+                  plugins: {
+                    ...chartOptions.plugins,
+                    legend: {
+                      position: 'bottom' as const,
+                    }
                   }
-                }
-              }} 
-            />
+                }} 
+              />
+            )}
           </Box>
         </Paper>
 
