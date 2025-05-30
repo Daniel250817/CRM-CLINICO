@@ -292,7 +292,7 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
       <Dialog open={open} onClose={onClose} maxWidth="lg" fullWidth>        <form onSubmit={formik.handleSubmit}>          <DialogTitle>
-            <span style={{ fontSize: '1.5rem', fontWeight: 'bold' }}>Nueva Factura</span>
+            <span style={{ fontSize: '1.5rem', fontWeight: 'bold'}}>Nueva Factura</span>
           </DialogTitle>
 
           <DialogContent>
@@ -305,7 +305,8 @@ const InvoiceForm: React.FC<InvoiceFormProps> = ({
                 display: 'grid',
                 gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
                 gap: 3,
-                mb: 3
+                mb: 3,
+                '& > *': { marginTop: 1 }
               }}
             >              {/* Información de la cita */}              <Autocomplete
                 options={citas}

@@ -189,6 +189,16 @@ const convertirHorarioFrontendaBD = (horarios: HorarioItem[]) => {
     sabado: []
   };
 
+  // Si no hay horarios definidos, establecer un horario por defecto
+  if (!horarios || horarios.length === 0) {
+    horarioBD.lunes = [{ inicio: '09:00', fin: '14:00' }];
+    horarioBD.martes = [{ inicio: '09:00', fin: '14:00' }];
+    horarioBD.miercoles = [{ inicio: '09:00', fin: '14:00' }];
+    horarioBD.jueves = [{ inicio: '09:00', fin: '14:00' }];
+    horarioBD.viernes = [{ inicio: '09:00', fin: '14:00' }];
+    return horarioBD;
+  }
+
   horarios.forEach(horario => {
     if (!horario.inicio || !horario.fin || !horario.dias || horario.dias.length === 0) {
       return; // Ignorar horarios incompletos
@@ -200,9 +210,10 @@ const convertirHorarioFrontendaBD = (horarios: HorarioItem[]) => {
         if (!horarioBD[diaNombre]) {
           horarioBD[diaNombre] = [];
         }
+        // Asegurar que los valores sean strings válidos
         horarioBD[diaNombre].push({
-          inicio: horario.inicio,
-          fin: horario.fin
+          inicio: typeof horario.inicio === 'string' ? horario.inicio : '09:00',
+          fin: typeof horario.fin === 'string' ? horario.fin : '14:00'
         });
       }
     });
@@ -547,18 +558,18 @@ const DentistaForm = () => {
         setError('Debe especificar al menos un horario válido con días seleccionados');
         setLoading(false);
         return;
-      }
-
-      const horarioTrabajoBD = convertirHorarioFrontendaBD(horarios);      // Now create the dentist profile
+      }      const horarioTrabajoBD = convertirHorarioFrontendaBD(horarios);
+      
+      // Ensure data types are correct before sending to the backend
       const dentistaData = {
-        userId,
-        especialidad: formData.especialidad,
+        userId: userId ? String(userId) : '', // Ensure userId is a string
+        especialidad: formData.especialidad?.trim() || "",
         horarioTrabajo: horarioTrabajoBD,
-        status: formData.status,
-        titulo: formData.titulo,
-        numeroColegiado: formData.numeroColegiado,
-        añosExperiencia: formData.añosExperiencia ? parseInt(formData.añosExperiencia) : undefined,
-        biografia: formData.biografia
+        status: formData.status || "activo",
+        titulo: formData.titulo?.trim() || "",
+        numeroColegiado: formData.numeroColegiado?.trim() || "",
+        añosExperiencia: formData.añosExperiencia ? Number(formData.añosExperiencia) : undefined,
+        biografia: formData.biografia?.trim() || ""
       };
 
       if (isEditMode && id) {
@@ -573,13 +584,31 @@ const DentistaForm = () => {
       setTimeout(() => {
         navigate('/dentistas');
       }, 1500);
-        } catch (error) {
+    } catch (error) {
       console.error('Error al guardar dentista:', error);
       const apiError = error as ApiError;
       
       // Handle different types of errors
       if (apiError.response?.status === 422 && apiError.response.data?.errors) {
         // Format validation errors
+        console.log('Validation errors:', apiError.response.data.errors);
+        
+        // Process errors and set form field errors
+        const validationErrors: FormErrors = {};
+        apiError.response.data.errors.forEach((err: any) => {
+          const fieldPath = err.campo.split('.');
+          const fieldName = fieldPath[fieldPath.length - 1] as keyof FormErrors;
+          
+          if (fieldName === 'horarioTrabajo') {
+            validationErrors.horarioTrabajo = err.mensaje;
+          } else if (fieldName in formData) {
+            validationErrors[fieldName as keyof FormErrors] = err.mensaje;
+          }
+        });
+        
+        setFormErrors(validationErrors);
+        
+        // Also set a general error message
         const errorMessages = apiError.response.data.errors
           .map((err: any) => `${err.mensaje} (${err.campo})`)
           .join('\n');

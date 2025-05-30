@@ -133,16 +133,19 @@ const clienteSchemas = {
 const dentistaSchemas = {
   // Esquema para crear/actualizar dentista
   crearDentista: z.object({
-    userId: z.string(),
+    userId: z.union([z.string(), z.number()]).transform(val => parseInt(val, 10)), // Acepta string o número y lo convierte a entero
     especialidad: z.string().optional(),
-    horarioTrabajo: z.record(z.array(z.object({
-      inicio: z.string(),
-      fin: z.string()
-    }))).optional(),
+    horarioTrabajo: z.union([
+      z.string(), // Acepta string para JSON serializado
+      z.record(z.array(z.object({
+        inicio: z.string(),
+        fin: z.string()
+      })))
+    ]).optional(),
     status: z.enum(['activo', 'inactivo', 'vacaciones']).optional(),
     titulo: z.string().optional(),
     numeroColegiado: z.string().optional(),
-    añosExperiencia: z.number().int().min(0).optional(),
+    añosExperiencia: z.union([z.number().int().min(0), z.string().transform(val => val ? parseInt(val, 10) : undefined)]).optional(),
     biografia: z.string().optional()
   })
 };
@@ -199,24 +202,76 @@ const servicioSchemas = {
   crearServicio: z.object({
     nombre: z.string().min(1, 'El nombre es obligatorio'),
     descripcion: z.string().optional(),
-    precio: z.number().positive('El precio debe ser mayor que 0'),
-    duracion: z.number().int().min(1, 'La duración debe ser mayor que 0'),
+    precio: z.union([
+      z.number(),
+      z.string().regex(/^\d+\.?\d*$/, 'El precio debe ser un número válido')
+    ]).transform((val) => {
+      const num = typeof val === 'string' ? parseFloat(val) : val;
+      if (isNaN(num) || num <= 0) {
+        throw new Error('El precio debe ser mayor que 0');
+      }
+      return num;
+    }),
+    duracion: z.union([
+      z.number(),
+      z.string().regex(/^\d+$/, 'La duración debe ser un número entero')
+    ]).transform((val) => {
+      const num = typeof val === 'string' ? parseInt(val) : val;
+      if (isNaN(num) || num < 1) {
+        throw new Error('La duración debe ser mayor que 0');
+      }
+      return num;
+    }),
     imagen: z.string().optional(),
     categoria: z.string().optional(),
     codigoServicio: z.string().optional(),
-    activo: z.boolean().optional()
+    activo: z.union([
+      z.boolean(),
+      z.string()
+    ]).transform((val) => {
+      if (typeof val === 'string') {
+        return val === 'true' || val === '1';
+      }
+      return val;
+    }).optional()
   }),
 
   // Esquema para actualizar servicio
   actualizarServicio: z.object({
     nombre: z.string().min(1, 'El nombre es obligatorio').optional(),
     descripcion: z.string().optional(),
-    precio: z.number().positive('El precio debe ser mayor que 0').optional(),
-    duracion: z.number().int().min(1, 'La duración debe ser mayor que 0').optional(),
+    precio: z.union([
+      z.number(),
+      z.string().regex(/^\d+\.?\d*$/, 'El precio debe ser un número válido')
+    ]).transform((val) => {
+      const num = typeof val === 'string' ? parseFloat(val) : val;
+      if (isNaN(num) || num <= 0) {
+        throw new Error('El precio debe ser mayor que 0');
+      }
+      return num;
+    }).optional(),
+    duracion: z.union([
+      z.number(),
+      z.string().regex(/^\d+$/, 'La duración debe ser un número entero')
+    ]).transform((val) => {
+      const num = typeof val === 'string' ? parseInt(val) : val;
+      if (isNaN(num) || num < 1) {
+        throw new Error('La duración debe ser mayor que 0');
+      }
+      return num;
+    }).optional(),
     imagen: z.string().optional(),
     categoria: z.string().optional(),
     codigoServicio: z.string().optional(),
-    activo: z.boolean().optional()
+    activo: z.union([
+      z.boolean(),
+      z.string()
+    ]).transform((val) => {
+      if (typeof val === 'string') {
+        return val === 'true' || val === '1';
+      }
+      return val;
+    }).optional()
   })
 };
 

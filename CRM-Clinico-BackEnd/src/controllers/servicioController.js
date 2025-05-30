@@ -11,9 +11,7 @@ class ServicioController {
   static async crearServicio(req, res, next) {
     try {
       const { nombre, descripcion, precio, duracion, categoria, codigoServicio, activo } = req.body;
-      let imagen = null;
-
-      // Manejar la imagen si se subió una
+      let imagen = null;      // Manejar la imagen si se subió una
       if (req.file) {
         imagen = `/uploads/servicios/${req.file.filename}`;
       }
@@ -147,13 +145,12 @@ class ServicioController {
           return next(new ValidationError(`Ya existe un servicio con el código: ${codigoServicio}`));
         }
       }
-      
-      // Manejar la imagen
+        // Manejar la imagen
       let imagen = servicio.imagen;
       if (req.file) {
         // Si hay una imagen anterior, eliminarla
         if (servicio.imagen) {
-          const imagenAnterior = path.join(__dirname, '..', '..', 'public', servicio.imagen);
+          const imagenAnterior = path.join(__dirname, '../../uploads/servicios', path.basename(servicio.imagen));
           await fs.unlink(imagenAnterior).catch(err => 
             logger.error(`Error al eliminar imagen anterior: ${err}`)
           );

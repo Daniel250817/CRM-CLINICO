@@ -5,7 +5,6 @@ import {
   CardContent,
   CardMedia,
   Typography,
-  Grid,
   IconButton,
   Button,
   Dialog,
@@ -18,7 +17,9 @@ import {
   Chip,
   Tooltip,
   CircularProgress,
-  Alert
+  Alert,
+  FormControlLabel,
+  Switch
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -28,7 +29,7 @@ import {
   AttachMoney as MoneyIcon,
   Category as CategoryIcon
 } from '@mui/icons-material';
-import { servicioService, type Servicio, type CrearServicioDTO } from '../../services/servicioService';
+import { servicioService, type Servicio, construirUrlImagen } from '../../services/servicioService';
 import { useAuth } from '../../contexts/AuthContext';
 
 const ServiciosList = () => {
@@ -111,9 +112,7 @@ const ServiciosList = () => {
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    if (!servicioActual) return;
-
-    try {
+    if (!servicioActual) return;    try {
       // Asegurarse de que los valores numéricos sean números
       const datosServicio = {
         ...servicioActual,
@@ -140,12 +139,6 @@ const ServiciosList = () => {
       }
       if (typeof datosServicio.duracion !== 'number' || isNaN(datosServicio.duracion)) {
         throw new Error('La duración debe ser un número válido');
-      }
-
-      // Crear FormData si hay una imagen seleccionada
-      const formData = new FormData();
-      if (selectedImage) {
-        formData.append('imagen', selectedImage);
       }
 
       // Agregar el resto de los datos al FormData
@@ -200,66 +193,144 @@ const ServiciosList = () => {
 
       {error && (
         <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>
-      )}
-
-      <Grid container spacing={3}>
+      )}      <Box 
+        sx={{ 
+          display: 'grid', 
+          gridTemplateColumns: { 
+            xs: '1fr', 
+            sm: 'repeat(2, 1fr)', 
+            md: 'repeat(3, 1fr)',
+            lg: 'repeat(4, 1fr)'
+          }, 
+          gap: 3,
+          gridAutoRows: '1fr' // Hace que todas las filas tengan la misma altura
+        }}
+      >
         {servicios.map((servicio) => (
-          <Grid item xs={12} sm={6} md={4} key={servicio.id}>
-            <Card>
-              {servicio.imagen && (
+          <Card 
+            key={servicio.id} 
+            sx={{ 
+              height: '100%', // Ocupa toda la altura de la celda del grid
+              display: 'flex',
+              flexDirection: 'column',
+              transition: 'transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out',
+              '&:hover': {
+                transform: 'translateY(-4px)',
+                boxShadow: (theme) => theme.shadows[8]
+              }
+            }}
+          >
+            {/* Imagen con altura fija */}
+            <Box
+              sx={{
+                height: 180, // Altura fija para todas las imágenes
+                backgroundColor: 'grey.100',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                overflow: 'hidden'
+              }}
+            >
+              {servicio.imagen ? (
                 <CardMedia
                   component="img"
-                  height="140"
-                  image={servicio.imagen}
+                  sx={{
+                    width: '100%',
+                    height: '100%',
+                    objectFit: 'cover' // Mantiene la proporción y llena el contenedor
+                  }}
+                  image={construirUrlImagen(servicio.imagen)}
                   alt={servicio.nombre}
                 />
-              )}
-              <CardContent>
-                <Box display="flex" justifyContent="space-between" alignItems="flex-start">
-                  <Typography variant="h6" gutterBottom>
-                    {servicio.nombre}
-                  </Typography>
-                  {user?.rol === 'admin' && (
-                    <Box>
-                      <IconButton
-                        size="small"
-                        onClick={() => handleOpenDialog(servicio)}
-                      >
-                        <EditIcon fontSize="small" />
-                      </IconButton>
-                      <IconButton
-                        size="small"
-                        color="error"
-                        onClick={() => handleDeleteClick(servicio)}
-                      >
-                        <DeleteIcon fontSize="small" />
-                      </IconButton>
-                    </Box>
-                  )}
-                </Box>
-
-                <Typography
-                  variant="body2"
-                  color="text.secondary"
+              ) : (
+                <Box
                   sx={{
-                    display: '-webkit-box',
-                    WebkitLineClamp: 3,
-                    WebkitBoxOrient: 'vertical',
-                    overflow: 'hidden',
-                    mb: 2,
-                    height: '4.5em'
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    height: '100%',
+                    color: 'text.secondary'
                   }}
                 >
-                  {servicio.descripcion}
-                </Typography>
+                  <CategoryIcon sx={{ fontSize: 48, mb: 1 }} />
+                  <Typography variant="body2">Sin imagen</Typography>
+                </Box>
+              )}
+            </Box>
 
-                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap">
+            {/* Contenido con flex-grow para ocupar el espacio restante */}
+            <CardContent sx={{ 
+              flexGrow: 1, 
+              display: 'flex', 
+              flexDirection: 'column',
+              p: 2
+            }}>
+              {/* Header con título y botones */}
+              <Box display="flex" justifyContent="space-between" alignItems="flex-start" mb={1}>
+                <Typography 
+                  variant="h6" 
+                  sx={{ 
+                    fontWeight: 600,
+                    fontSize: '1.1rem',
+                    lineHeight: 1.3,
+                    minHeight: '2.6em', // Altura mínima para 2 líneas
+                    display: '-webkit-box',
+                    WebkitLineClamp: 2,
+                    WebkitBoxOrient: 'vertical',
+                    overflow: 'hidden'
+                  }}
+                >
+                  {servicio.nombre}
+                </Typography>
+                {user?.rol === 'admin' && (
+                  <Box sx={{ ml: 1 }}>
+                    <IconButton
+                      size="small"
+                      onClick={() => handleOpenDialog(servicio)}
+                      sx={{ p: 0.5 }}
+                    >
+                      <EditIcon fontSize="small" />
+                    </IconButton>
+                    <IconButton
+                      size="small"
+                      color="error"
+                      onClick={() => handleDeleteClick(servicio)}
+                      sx={{ p: 0.5 }}
+                    >
+                      <DeleteIcon fontSize="small" />
+                    </IconButton>
+                  </Box>
+                )}
+              </Box>
+
+              {/* Descripción con altura fija */}
+              <Typography
+                variant="body2"
+                color="text.secondary"
+                sx={{
+                  display: '-webkit-box',
+                  WebkitLineClamp: 3,
+                  WebkitBoxOrient: 'vertical',
+                  overflow: 'hidden',
+                  mb: 2,
+                  minHeight: '4.5em', // Altura fija para 3 líneas
+                  lineHeight: 1.5
+                }}
+              >
+                {servicio.descripcion}
+              </Typography>
+
+              {/* Chips en la parte inferior */}
+              <Box sx={{ mt: 'auto' }}>
+                <Stack direction="row" spacing={1} alignItems="center" flexWrap="wrap" sx={{ gap: 0.5 }}>
                   <Tooltip title="Precio">
                     <Chip
                       icon={<MoneyIcon />}
                       label={`$${typeof servicio.precio === 'number' ? servicio.precio.toFixed(2) : parseFloat(servicio.precio).toFixed(2)}`}
                       size="small"
                       color="primary"
+                      variant="filled"
                     />
                   </Tooltip>
                   <Tooltip title="Duración">
@@ -267,6 +338,8 @@ const ServiciosList = () => {
                       icon={<TimerIcon />}
                       label={`${servicio.duracion} min`}
                       size="small"
+                      color="secondary"
+                      variant="outlined"
                     />
                   </Tooltip>
                   {servicio.categoria && (
@@ -275,6 +348,8 @@ const ServiciosList = () => {
                         icon={<CategoryIcon />}
                         label={servicio.categoria}
                         size="small"
+                        color="info"
+                        variant="outlined"
                       />
                     </Tooltip>
                   )}
@@ -283,14 +358,15 @@ const ServiciosList = () => {
                       label="Inactivo"
                       size="small"
                       color="error"
+                      variant="filled"
                     />
                   )}
                 </Stack>
-              </CardContent>
-            </Card>
-          </Grid>
+              </Box>
+            </CardContent>
+          </Card>
         ))}
-      </Grid>
+      </Box>
 
       <Dialog 
         open={openDialog} 
@@ -349,12 +425,20 @@ const ServiciosList = () => {
                     {categoria}
                   </MenuItem>
                 ))}
-              </TextField>
-              <TextField
+              </TextField>              <TextField
                 label="Código de Servicio"
                 fullWidth
                 value={servicioActual?.codigoServicio || ''}
                 onChange={e => setServicioActual(prev => ({ ...prev, codigoServicio: e.target.value }))}
+              />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={servicioActual?.activo ?? true}
+                    onChange={e => setServicioActual(prev => ({ ...prev, activo: e.target.checked }))}
+                  />
+                }
+                label="Servicio activo"
               />
               <TextField
                 label="URL de Imagen"
@@ -381,11 +465,10 @@ const ServiciosList = () => {
                 >
                   {selectedImage ? 'Cambiar imagen' : 'Subir imagen'}
                 </Button>
-              </label>
-              {servicioActual?.imagen && (
+              </label>              {servicioActual?.imagen && (
                 <Box sx={{ mt: 2, textAlign: 'center' }}>
                   <img 
-                    src={servicioActual.imagen} 
+                    src={servicioActual.imagen.startsWith('blob:') ? servicioActual.imagen : construirUrlImagen(servicioActual.imagen)} 
                     alt="Vista previa" 
                     style={{ maxWidth: '100%', maxHeight: '200px' }} 
                   />
