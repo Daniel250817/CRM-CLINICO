@@ -10,9 +10,10 @@ const medicalRecordsDir = path.join(uploadsDir, 'medical-records');
 const xraysDir = path.join(uploadsDir, 'xrays');
 const documentsDir = path.join(uploadsDir, 'documents');
 const avatarsDir = path.join(uploadsDir, 'avatars');
+const serviciosDir = path.join(uploadsDir, 'servicios');
 
 // Asegurar que los directorios existan
-[uploadsDir, medicalRecordsDir, xraysDir, documentsDir, avatarsDir].forEach(dir => {
+[uploadsDir, medicalRecordsDir, xraysDir, documentsDir, avatarsDir, serviciosDir].forEach(dir => {
   if (!fs.existsSync(dir)) {
     fs.mkdirSync(dir, { recursive: true });
   }
@@ -58,6 +59,17 @@ const avatarStorage = multer.diskStorage({
   },
   filename: (req, file, cb) => {
     const uniqueFilename = `avatar-${uuidv4()}${path.extname(file.originalname)}`;
+    cb(null, uniqueFilename);
+  }
+});
+
+// Configure storage for service images
+const servicioImageStorage = multer.diskStorage({
+  destination: (req, file, cb) => {
+    cb(null, serviciosDir);
+  },
+  filename: (req, file, cb) => {
+    const uniqueFilename = `servicio-${uuidv4()}-${Date.now()}${path.extname(file.originalname)}`;
     cb(null, uniqueFilename);
   }
 });
@@ -110,6 +122,22 @@ const avatarFilter = (req, file, cb) => {
   }
 };
 
+// File filter for service images
+const servicioImageFilter = (req, file, cb) => {
+  const allowedTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/webp'
+  ];
+  
+  if (allowedTypes.includes(file.mimetype)) {
+    cb(null, true);
+  } else {
+    cb(new AppError('Tipo de archivo no permitido para imágenes de servicio. Solo se permiten JPG, PNG y WEBP', 400), false);
+  }
+};
+
 // Configure multer instances
 const uploadMedicalRecord = multer({
   storage: medicalRecordsStorage,
@@ -144,6 +172,15 @@ const uploadAvatar = multer({
   }
 });
 
+// Configure multer for service images
+const uploadServiceImage = multer({
+  storage: servicioImageStorage,
+  fileFilter: servicioImageFilter,
+  limits: {
+    fileSize: 10 * 1024 * 1024 // 10MB
+  }
+});
+
 // Error handler for multer
 const handleMulterError = (err, req, res, next) => {
   if (err instanceof multer.MulterError) {
@@ -160,5 +197,6 @@ module.exports = {
   uploadXray,
   uploadDocument,
   uploadAvatar,
+  uploadServiceImage,
   handleMulterError
 };

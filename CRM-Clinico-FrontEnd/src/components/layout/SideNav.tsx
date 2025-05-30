@@ -49,7 +49,7 @@ const SideNav: React.FC<SideNavProps> = ({ open, drawerWidth, onClose }) => {
   
   const bottomMenuItems = [
     { text: 'Configuración', icon: <SettingsIcon />, path: '/settings' },
-    { text: 'Ayuda', icon: <HelpIcon />, path: '/help' },
+    // { text: 'Ayuda', icon: <HelpIcon />, path: '/help' },
   ];
 
   const handleNavigation = (path: string) => {

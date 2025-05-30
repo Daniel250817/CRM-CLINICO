@@ -33,12 +33,12 @@ import {
   Today as TodayIcon,
   ArrowDropDown as ArrowDropDownIcon,
   AccessTime as AccessTimeIcon,
-  Person as PersonIcon,
-  Edit as EditIcon,
-  History as HistoryIcon,
-  Close as CloseIcon,
+  Person as PersonIcon,  Edit as EditIcon,
+  History as HistoryIcon,  Close as CloseIcon,
   Save as SaveIcon,
-  Delete as DeleteIcon
+  Delete as DeleteIcon,
+  Visibility as VisibilityIcon,
+  EventNote as EventNoteIcon
 } from '@mui/icons-material';
 import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
@@ -243,37 +243,40 @@ const AppointmentCalendar = () => {
     };
 
     cargarDentistas();
-  }, [currentDate]);
-
-  // Cargar próximas citas
+  }, [currentDate]);  // Cargar citas de hoy
   useEffect(() => {
-    const cargarProximasCitas = async () => {
+    const cargarCitasDeHoy = async () => {
       try {
         setLoadingCitas(true);
+        // Obtener la fecha de hoy en formato ISO (igual que en dashboard)
         const hoy = new Date();
-        const response = await citaService.obtenerCitas({
-          params: {
-            desde: hoy.toISOString(),
-            estado: 'pendiente,confirmada'
-          }
+        hoy.setHours(0, 0, 0, 0);
+        const manana = new Date(hoy);
+        manana.setDate(manana.getDate() + 1);
+
+        // Obtener todas las citas y filtrar las de hoy (igual que en dashboard)
+        const todasLasCitas = await citaService.obtenerCitas();
+        const citasHoy = todasLasCitas.filter(cita => {
+          const fechaCita = new Date(cita.fechaHora);
+          return fechaCita >= hoy && fechaCita < manana && cita.estado !== 'cancelada';
         });
         
         // Ordenar por fecha y tomar las próximas 5
-        const citasOrdenadas = response
+        const citasOrdenadas = citasHoy
           .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
           .slice(0, 5);
         
         setProximasCitas(citasOrdenadas);
         setErrorCitas(null);
       } catch (error) {
-        console.error('Error al cargar próximas citas:', error);
-        setErrorCitas('No se pudieron cargar las próximas citas');
+        console.error('Error al cargar citas de hoy:', error);
+        setErrorCitas('No se pudieron cargar las citas de hoy');
       } finally {
         setLoadingCitas(false);
       }
     };
 
-    cargarProximasCitas();
+    cargarCitasDeHoy();
   }, []);
 
   // Cargar citas para el calendario
@@ -561,18 +564,25 @@ const AppointmentCalendar = () => {
           dentist: citaCreada.dentista.usuario.nombre,
           service: citaCreada.servicio.nombre
         }
-      };
+      };      setCalendarEvents(prevEvents => [...prevEvents, nuevoEvento]);
 
-      setCalendarEvents(prevEvents => [...prevEvents, nuevoEvento]);
-
-      // Actualizar las próximas citas
-      const nuevasProximasCitas = await citaService.obtenerCitas({
-        params: {
-          desde: new Date().toISOString(),
-          estado: 'pendiente,confirmada'
-        }
+      // Actualizar las citas de hoy usando la misma lógica del dashboard
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const manana = new Date(hoy);
+      manana.setDate(manana.getDate() + 1);
+      
+      const todasLasCitas = await citaService.obtenerCitas();
+      const citasHoy = todasLasCitas.filter(cita => {
+        const fechaCita = new Date(cita.fechaHora);
+        return fechaCita >= hoy && fechaCita < manana && cita.estado !== 'cancelada';
       });
-      setProximasCitas(nuevasProximasCitas.slice(0, 5));
+      
+      const citasOrdenadas = citasHoy
+        .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
+        .slice(0, 5);
+      
+      setProximasCitas(citasOrdenadas);
 
       // Mostrar mensaje de éxito
       addNotification('Cita creada exitosamente', 'success');
@@ -622,20 +632,39 @@ const AppointmentCalendar = () => {
       handleViewDentistSchedule(value);
     }
   };
-
   // Modificar la sección de dentistas disponibles
   const renderDentistasDisponibles = () => {
     if (loadingDentistas) {
       return (
-        <Box sx={{ display: 'flex', justifyContent: 'center', p: 3 }}>
-          <CircularProgress />
+        <Box sx={{ 
+          display: 'flex', 
+          justifyContent: 'center', 
+          alignItems: 'center',
+          p: 4,
+          flexDirection: 'column',
+          gap: 2
+        }}>
+          <CircularProgress size={32} color="primary" />
+          <Typography variant="body2" color="text.secondary">
+            Cargando dentistas...
+          </Typography>
         </Box>
       );
     }
 
     if (errorDentistas) {
       return (
-        <Alert severity="error" sx={{ m: 2 }}>
+        <Alert 
+          severity="error" 
+          sx={{ 
+            m: 2,
+            borderRadius: 2,
+            '& .MuiAlert-message': {
+              width: '100%',
+              textAlign: 'center'
+            }
+          }}
+        >
           {errorDentistas}
         </Alert>
       );
@@ -643,48 +672,90 @@ const AppointmentCalendar = () => {
 
     if (dentistas.length === 0) {
       return (
-        <Box sx={{ p: 2, textAlign: 'center' }}>
-          <Typography variant="body2" color="text.secondary">
-            No hay dentistas disponibles para esta fecha
+        <Box sx={{ 
+          p: 4, 
+          textAlign: 'center',
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          gap: 2
+        }}>
+          <PersonIcon 
+            sx={{ 
+              fontSize: 48, 
+              color: 'text.disabled' 
+            }} 
+          />
+          <Typography variant="body1" color="text.secondary" fontWeight="500">
+            No hay dentistas disponibles
+          </Typography>
+          <Typography variant="body2" color="text.disabled">
+            Los dentistas disponibles aparecerán aquí
           </Typography>
         </Box>
       );
     }
 
     return dentistas.map((dentista, index) => (
-      <Box key={dentista.id}>
+      <Paper
+        key={dentista.id}
+        elevation={1}
+        sx={{
+          borderRadius: 2,
+          border: '1px solid',
+          borderColor: 'divider',
+          transition: 'all 0.2s ease-in-out',
+          '&:hover': {
+            elevation: 3,
+            borderColor: 'primary.light',
+            bgcolor: 'action.hover'
+          },
+          mb: index < dentistas.length - 1 ? 1.5 : 0
+        }}
+      >
         <Box 
           sx={{ 
             display: 'flex', 
             alignItems: 'center',
             gap: 2,
-            p: 2,
-            '&:hover': {
-              bgcolor: 'action.hover'
-            }
+            p: 2.5,
+            cursor: 'pointer'
           }}
+          onClick={() => handleViewDentistSchedule(dentista.id)}
         >
           <Avatar 
             sx={{ 
               bgcolor: 'primary.main',
-              width: 40,
-              height: 40
+              width: 45,
+              height: 45,
+              fontSize: '1.2rem',
+              fontWeight: 600
             }}
           >
             {dentista.usuario.nombre.charAt(0)}
           </Avatar>
-          <Box>
-            <Typography variant="subtitle1">
+          <Box sx={{ flex: 1 }}>
+            <Typography variant="subtitle1" fontWeight="600" color="text.primary">
               {dentista.usuario.nombre}
             </Typography>
-            <Typography variant="body2" color="text.secondary">
+            <Typography variant="body2" color="text.secondary" fontWeight="500">
               {dentista.especialidad || 'Médico dentista'}
             </Typography>
           </Box>
-          <Box sx={{ flexGrow: 1 }} />
+          <IconButton
+            size="small"
+            sx={{ 
+              color: 'primary.main',
+              '&:hover': {
+                bgcolor: 'primary.light',
+                color: 'primary.dark'
+              }
+            }}
+          >
+            <VisibilityIcon fontSize="small" />
+          </IconButton>
         </Box>
-        {index < dentistas.length - 1 && <Divider />}
-      </Box>
+      </Paper>
     ));
   };
 
@@ -859,19 +930,26 @@ const AppointmentCalendar = () => {
       });
 
       // Actualizar en el backend
-      await citaService.actualizarFechaHoraCita(citaId, nuevaFecha.toISOString(), duracion);
-
-      // Mostrar notificación de éxito
+      await citaService.actualizarFechaHoraCita(citaId, nuevaFecha.toISOString(), duracion);      // Mostrar notificación de éxito
       addNotification('Cita actualizada exitosamente', 'success');
 
-      // Actualizar la lista de próximas citas y el calendario
-      const nuevasProximasCitas = await citaService.obtenerCitas({
-        params: {
-          desde: new Date().toISOString(),
-          estado: 'pendiente,confirmada'
-        }
+      // Actualizar la lista de citas de hoy usando la misma lógica del dashboard
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const manana = new Date(hoy);
+      manana.setDate(manana.getDate() + 1);
+      
+      const todasLasCitas = await citaService.obtenerCitas();
+      const citasHoy = todasLasCitas.filter(cita => {
+        const fechaCita = new Date(cita.fechaHora);
+        return fechaCita >= hoy && fechaCita < manana && cita.estado !== 'cancelada';
       });
-      setProximasCitas(nuevasProximasCitas.slice(0, 5));
+      
+      const citasOrdenadas = citasHoy
+        .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
+        .slice(0, 5);
+      
+      setProximasCitas(citasOrdenadas);
       
       // Refrescar los eventos del calendario
       await actualizarEventosCalendario();
@@ -1050,10 +1128,8 @@ const AppointmentCalendar = () => {
           return nombreDentista.includes(nombreBuscado) || nombreBuscado.includes(nombreDentista);
         });
       }
-      console.log('Dentista seleccionado:', dentistaSeleccionado);
-
-      // Buscar servicio por ID y luego por nombre como fallback
-      let servicioSeleccionado = services.find(s => s.id === citaCompleta.servicio.id);
+      console.log('Dentista seleccionado:', dentistaSeleccionado);      // Buscar servicio por ID y luego por nombre como fallback
+      let servicioSeleccionado = services.find(s => s.id === Number(citaCompleta.servicio.id));
       if (!servicioSeleccionado) {
         servicioSeleccionado = services.find(s => {
           const nombreServicio = s.nombre.toLowerCase().trim();
@@ -1110,7 +1186,6 @@ const AppointmentCalendar = () => {
       addNotification('Error al preparar la edición de la cita', 'error');
     }
   };
-
   // Función para manejar la eliminación de cita
   const handleDeleteAppointment = async () => {
     try {
@@ -1123,14 +1198,23 @@ const AppointmentCalendar = () => {
         prevEvents.filter(event => event.id !== selectedAppointmentId)
       );
       
-      // Actualizar las próximas citas
-      const nuevasProximasCitas = await citaService.obtenerCitas({
-        params: {
-          desde: new Date().toISOString(),
-          estado: 'pendiente,confirmada'
-        }
+      // Actualizar las citas de hoy usando la misma lógica del dashboard
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const manana = new Date(hoy);
+      manana.setDate(manana.getDate() + 1);
+      
+      const todasLasCitas = await citaService.obtenerCitas();
+      const citasHoy = todasLasCitas.filter(cita => {
+        const fechaCita = new Date(cita.fechaHora);
+        return fechaCita >= hoy && fechaCita < manana && cita.estado !== 'cancelada';
       });
-      setProximasCitas(nuevasProximasCitas.slice(0, 5));
+      
+      const citasOrdenadas = citasHoy
+        .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
+        .slice(0, 5);
+      
+      setProximasCitas(citasOrdenadas);
       
       addNotification('Cita eliminada exitosamente', 'success');
       setOpenDeleteConfirm(false);
@@ -1193,22 +1277,29 @@ const AppointmentCalendar = () => {
         fechaHora: fechaUTC.toISOString(),
         duracion: Number(newAppointmentData.duration),
         notas: newAppointmentData.notes?.trim() || '',
-      };
-
-      const response = await citaService.actualizarCita(selectedAppointmentId, citaActualizada);
+      };      const response = await citaService.actualizarCita(selectedAppointmentId, citaActualizada);
       console.log('Respuesta de actualización de cita:', response);
-
+      
       // Actualizar todos los eventos del calendario
       await actualizarEventosCalendario();
 
-      // Actualizar las próximas citas
-      const nuevasProximasCitas = await citaService.obtenerCitas({
-        params: {
-          desde: new Date().toISOString(),
-          estado: 'pendiente,confirmada'
-        }
+      // Actualizar las citas de hoy usando la misma lógica del dashboard
+      const hoy = new Date();
+      hoy.setHours(0, 0, 0, 0);
+      const manana = new Date(hoy);
+      manana.setDate(manana.getDate() + 1);
+      
+      const todasLasCitas = await citaService.obtenerCitas();
+      const citasHoy = todasLasCitas.filter(cita => {
+        const fechaCita = new Date(cita.fechaHora);
+        return fechaCita >= hoy && fechaCita < manana && cita.estado !== 'cancelada';
       });
-      setProximasCitas(nuevasProximasCitas.slice(0, 5));
+      
+      const citasOrdenadas = citasHoy
+        .sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime())
+        .slice(0, 5);
+      
+      setProximasCitas(citasOrdenadas);
 
       addNotification('Cita actualizada exitosamente', 'success');
       setOpenEditAppointment(false);
@@ -1380,137 +1471,237 @@ const AppointmentCalendar = () => {
               />
             )}
           </Paper>
-        </Box>
-
-        {/* Panel lateral */}
+        </Box>        {/* Panel lateral */}
         <Box sx={{ 
-          width: { xs: '100%', md: '300px' }, 
+          width: { xs: '100%', md: '350px' }, 
           flex: 'none',
           display: 'flex',
           flexDirection: 'column',
           gap: 3
         }}>
           {/* Dentistas disponibles */}
-          <Card>
-            <CardHeader 
+          <Card 
+            elevation={2}
+            sx={{ 
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              overflow: 'hidden'
+            }}
+          >            <CardHeader 
               title="Dentistas Disponibles" 
-              titleTypographyProps={{ variant: 'h6' }}
-            />
-            <Divider />
+              titleTypographyProps={{ 
+                variant: 'h6', 
+                fontWeight: 600,
+                color: '#1e60fa'
+              }}
+              sx={{ 
+                bgcolor: '#1e60fa',
+                color: 'white',
+                py: 2,
+                '& .MuiCardHeader-title': {
+                  color: 'white'
+                }
+              }}/>
             <CardContent sx={{ 
-              p: 0, 
+              p: 3, 
               maxHeight: '300px', 
               overflowY: 'auto',
-              '&:last-child': { pb: 0 },
+              display: 'flex',
+              flexDirection: 'column',
+              gap: 0,
+              bgcolor: 'background.paper',
+              '&:last-child': { pb: 3 },
               '&::-webkit-scrollbar': {
-                width: '8px',
+                width: '6px',
               },
               '&::-webkit-scrollbar-track': {
-                background: '#f1f1f1',
-                borderRadius: '4px',
+                background: '#f5f5f5',
+                borderRadius: '3px',
               },
               '&::-webkit-scrollbar-thumb': {
-                background: '#bdbdbd',
-                borderRadius: '4px',
+                background: '#c1c1c1',
+                borderRadius: '3px',
                 '&:hover': {
-                  background: '#9e9e9e'
+                  background: '#a1a1a1'
                 }
               }
             }}>
               {renderDentistasDisponibles()}
             </CardContent>
-          </Card>
-
-          {/* Próximas Citas */}
-          <Card sx={{ width: '100%' }}>
-            <CardHeader
-              title="Próximas Citas"
-              action={
-                <Button 
+          </Card>{/* Citas de Hoy */}
+          <Card 
+            elevation={2}
+            sx={{ 
+              borderRadius: 3,
+              border: '1px solid',
+              borderColor: 'divider',
+              overflow: 'hidden'
+            }}
+          >            <CardHeader
+              title="Citas de Hoy"              action={
+                <Chip 
                   size="small"
-                  endIcon={<ArrowDropDownIcon />}
-                >
-                  Hoy
-                </Button>
+                  label={`${proximasCitas.length} citas`}
+                  sx={{ 
+                    color: 'white',
+                    borderColor: 'white',
+                    '& .MuiChip-label': {
+                      color: 'white'
+                    }
+                  }}
+                  variant="outlined"
+                />
               }
-              titleTypographyProps={{ variant: 'h6' }}
-              sx={{ px: 3 }}
+              titleTypographyProps={{ 
+                variant: 'h6', 
+                fontWeight: 600,
+                color: '#1e60fa'
+              }}
+              sx={{ 
+                bgcolor: '#1e60fa',
+                color: 'white',
+                py: 2,
+                '& .MuiCardHeader-title': {
+                  color: 'white'
+                }
+              }}
             />
-            <Divider />
             <Box sx={{ 
-              p: 2,
+              p: 3,
               maxHeight: '400px',
               overflowY: 'auto',
               display: 'flex',
               flexDirection: 'column',
               gap: 2,
-              '& .appointment-item': {
-                width: '100%',
-                '& .MuiBox-root': {
-                  width: '100%'
-                }
-              },
+              bgcolor: 'background.paper',
               '&::-webkit-scrollbar': {
-                width: '8px',
+                width: '6px',
               },
               '&::-webkit-scrollbar-track': {
-                background: '#f1f1f1',
-                borderRadius: '4px',
+                background: '#f5f5f5',
+                borderRadius: '3px',
               },
               '&::-webkit-scrollbar-thumb': {
-                background: '#bdbdbd',
-                borderRadius: '4px',
+                background: '#c1c1c1',
+                borderRadius: '3px',
                 '&:hover': {
-                  background: '#9e9e9e'
+                  background: '#a1a1a1'
                 }
               }
             }}>
               {loadingCitas ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
-                  <CircularProgress size={24} />
+                <Box sx={{ 
+                  display: 'flex', 
+                  justifyContent: 'center', 
+                  alignItems: 'center',
+                  p: 4,
+                  flexDirection: 'column',
+                  gap: 2
+                }}>
+                  <CircularProgress size={32} color="secondary" />
+                  <Typography variant="body2" color="text.secondary">
+                    Cargando citas...
+                  </Typography>
                 </Box>
               ) : errorCitas ? (
-                <Alert severity="error" sx={{ m: 2 }}>
+                <Alert 
+                  severity="error" 
+                  sx={{ 
+                    borderRadius: 2,
+                    '& .MuiAlert-message': {
+                      width: '100%',
+                      textAlign: 'center'
+                    }
+                  }}
+                >
                   {errorCitas}
                 </Alert>
               ) : proximasCitas.length === 0 ? (
-                <Box sx={{ p: 2, textAlign: 'center' }}>
-                  <Typography variant="body2" color="text.secondary">
-                    No hay citas próximas
+                <Box sx={{ 
+                  p: 4, 
+                  textAlign: 'center',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  gap: 2
+                }}>
+                  <EventNoteIcon 
+                    sx={{ 
+                      fontSize: 48, 
+                      color: 'text.disabled' 
+                    }} 
+                  />
+                  <Typography variant="body1" color="text.secondary" fontWeight="500">
+                    No hay citas para hoy
+                  </Typography>
+                  <Typography variant="body2" color="text.disabled">
+                    Las citas programadas aparecerán aquí
                   </Typography>
                 </Box>
               ) : (
                 proximasCitas.map((cita, index) => (
-                  <Box key={cita.id} className="appointment-item">
-                    <Stack spacing={1}>
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <AccessTimeIcon fontSize="small" color="action" />
-                        <Typography variant="body2">
-                          {dayjs(cita.fechaHora).format('HH:mm')} - {dayjs(cita.fechaHora).add(cita.duracion, 'minute').format('HH:mm')}
-                        </Typography>
+                  <Paper
+                    key={cita.id}
+                    elevation={1}
+                    sx={{
+                      p: 2.5,
+                      borderRadius: 2,
+                      border: '1px solid',
+                      borderColor: 'divider',
+                      transition: 'all 0.2s ease-in-out',
+                      '&:hover': {
+                        elevation: 3,
+                        borderColor: 'primary.light',
+                        bgcolor: 'action.hover'
+                      }
+                    }}
+                  >
+                    <Stack spacing={1.5}>
+                      <Box sx={{ 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        justifyContent: 'space-between'
+                      }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <AccessTimeIcon 
+                            fontSize="small" 
+                            color="primary"
+                            sx={{ bgcolor: 'primary.light', p: 0.5, borderRadius: 1 }}
+                          />
+                          <Typography variant="body1" fontWeight="600" color="primary.main">
+                            {dayjs(cita.fechaHora).format('HH:mm')} - {dayjs(cita.fechaHora).add(cita.duracion, 'minute').format('HH:mm')}
+                          </Typography>
+                        </Box>
+                        <Chip 
+                          size="small"
+                          label={cita.estado === 'pendiente' ? 'Pendiente' : 
+                                 cita.estado === 'confirmada' ? 'Confirmada' : 
+                                 cita.estado === 'completada' ? 'Completada' : 'Cancelada'}
+                          color={cita.estado === 'pendiente' ? 'warning' : 
+                                 cita.estado === 'confirmada' ? 'success' : 
+                                 cita.estado === 'completada' ? 'info' : 'error'}
+                          variant="filled"
+                          sx={{ fontWeight: 500 }}
+                        />
                       </Box>
-                      <Typography variant="subtitle2">
+                      
+                      <Typography variant="h6" fontWeight="600" color="text.primary">
                         {cita.servicio.nombre}
                       </Typography>
+                      
                       <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                        <PersonIcon fontSize="small" color="action" />
-                        <Typography variant="body2">
+                        <PersonIcon 
+                          fontSize="small" 
+                          color="action"
+                          sx={{ bgcolor: 'grey.100', p: 0.5, borderRadius: 1 }}
+                        />
+                        <Typography variant="body2" color="text.secondary" fontWeight="500">
                           {cita.cliente.usuario.nombre}
                         </Typography>
                       </Box>
-                      <Chip 
-                        size="small"
-                        label={cita.estado === 'pendiente' ? 'Pendiente' : 
-                               cita.estado === 'confirmada' ? 'Confirmada' : 
-                               cita.estado === 'completada' ? 'Completada' : 'Cancelada'}
-                        color={cita.estado === 'pendiente' ? 'warning' : 
-                               cita.estado === 'confirmada' ? 'success' : 
-                               cita.estado === 'completada' ? 'info' : 'error'}
-                        variant="outlined"
-                      />
                     </Stack>
-                    {index < proximasCitas.length - 1 && <Divider sx={{ my: 1 }} />}
-                  </Box>
+                  </Paper>
                 ))
               )}
             </Box>

@@ -8,6 +8,11 @@ export interface Servicio {
   duracion: number;
   precio: number;
   activo: boolean;
+  imagen?: string;
+  categoria?: string;
+  codigoServicio?: string;
+  createdAt?: string;
+  updatedAt?: string;
 }
 
 export interface CrearServicioDTO {
@@ -20,6 +25,20 @@ export interface CrearServicioDTO {
   codigoServicio?: string;
   activo?: boolean;
 }
+
+// Helper para construir URLs de imágenes
+export const construirUrlImagen = (rutaImagen?: string): string | undefined => {
+  if (!rutaImagen) return undefined;
+  
+  // Si ya es una URL completa, devolverla tal como está
+  if (rutaImagen.startsWith('http')) {
+    return rutaImagen;
+  }
+  
+  // Si es una ruta relativa, construir la URL completa
+  const baseUrl = import.meta.env.VITE_API_URL || 'http://localhost:3001';
+  return `${baseUrl}${rutaImagen}`;
+};
 
 const crearFormData = (datos: Partial<CrearServicioDTO>, imagen?: File | null) => {
   const formData = new FormData();

@@ -122,17 +122,23 @@ class DentistaController {
           email: email || dentista.usuario.email,
           telefono: telefono || dentista.usuario.telefono
         });
-      }
-
-      // Actualizar campos del dentista
-      if (especialidad !== undefined) dentista.especialidad = especialidad;
+      }      // Actualizar campos del dentista
+      if (especialidad !== undefined) dentista.especialidad = especialidad || '';
       if (horarioTrabajo !== undefined) {
-        dentista.horarioTrabajo = typeof horarioTrabajo === 'string' ? 
-          horarioTrabajo : 
-          JSON.stringify(horarioTrabajo);
+        // Asegurar que horarioTrabajo sea un objeto JSON válido
+        if (typeof horarioTrabajo === 'string') {
+          try {
+            dentista.horarioTrabajo = JSON.parse(horarioTrabajo);
+          } catch (e) {
+            logger.error('Error al parsear horarioTrabajo:', e);
+            return next(new ValidationError('El formato del horario de trabajo es inválido'));
+          }
+        } else {
+          dentista.horarioTrabajo = horarioTrabajo;
+        }
       }
-      if (status !== undefined) dentista.status = status;
-      if (titulo !== undefined) dentista.titulo = titulo;
+      if (status !== undefined) dentista.status = status || 'activo';
+      if (titulo !== undefined) dentista.titulo = titulo || '';
       
       if (numeroColegiado !== undefined) {
         // Verificar si el número ya está en uso por otro dentista
@@ -148,10 +154,12 @@ class DentistaController {
             return next(new ValidationError('El número de colegiado ya está registrado'));
           }
         }
-        dentista.numeroColegiado = numeroColegiado;
+        dentista.numeroColegiado = numeroColegiado;      }
+      if (añosExperiencia !== undefined) {
+        dentista.añosExperiencia = añosExperiencia !== null && añosExperiencia !== '' ? 
+          parseInt(añosExperiencia, 10) : null;
       }
-      if (añosExperiencia !== undefined) dentista.añosExperiencia = añosExperiencia;
-      if (biografia !== undefined) dentista.biografia = biografia;
+      if (biografia !== undefined) dentista.biografia = biografia || '';
       
       await dentista.save();
       
@@ -379,7 +387,7 @@ class DentistaController {
         });
       }
 
-      // Verificar número de colegiado único si se proporciona
+    // Verificar número de colegiado único si se proporciona
       if (numeroColegiado) {
         const existeNumero = await db.Dentista.findOne({ where: { numeroColegiado } });
         if (existeNumero) {
@@ -387,27 +395,38 @@ class DentistaController {
         }
       }
 
+      // Asegurar que horarioTrabajo sea un objeto JSON válido
+      let horarioTrabajoFinal = horarioTrabajo;
+      if (typeof horarioTrabajo === 'string') {
+        try {
+          horarioTrabajoFinal = JSON.parse(horarioTrabajo);
+        } catch (e) {
+          logger.error('Error al parsear horarioTrabajo:', e);
+          return next(new ValidationError('El formato del horario de trabajo es inválido'));
+        }
+      }
+
       // Crear el dentista
       console.log('Creando dentista con datos:', {
         userId,
         especialidad,
-        horarioTrabajo: JSON.stringify(horarioTrabajo),
+        horarioTrabajo: JSON.stringify(horarioTrabajoFinal),
         status,
         titulo,
         numeroColegiado,
-        añosExperiencia,
+        añosExperiencia: añosExperiencia ? parseInt(añosExperiencia, 10) : null,
         biografia
       });
 
       const dentista = await db.Dentista.create({
-        userId,
-        especialidad,
-        horarioTrabajo,
-        status,
-        titulo,
-        numeroColegiado,
-        añosExperiencia,
-        biografia
+        userId: parseInt(userId, 10),
+        especialidad: especialidad || '',
+        horarioTrabajo: horarioTrabajoFinal,
+        status: status || 'activo',
+        titulo: titulo || '',
+        numeroColegiado: numeroColegiado || null,
+        añosExperiencia: añosExperiencia ? parseInt(añosExperiencia, 10) : null,
+        biografia: biografia || ''
       });
 
       // Obtener el dentista con la información del usuario

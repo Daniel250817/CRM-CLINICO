@@ -220,26 +220,28 @@ const Dashboard = () => {
       setLoadingCitas(false);
     }
   };
-
-  // Cargar próximas citas
+  // Cargar citas de hoy
   const cargarProximasCitas = async () => {
     try {
       setLoadingCitas(true);
+      // Obtener la fecha de hoy en formato ISO
       const hoy = new Date();
-      const proximoMes = new Date(hoy);
-      proximoMes.setMonth(hoy.getMonth() + 1);
-      
+      hoy.setHours(0, 0, 0, 0);
+      const manana = new Date(hoy);
+      manana.setDate(manana.getDate() + 1);
+
+      // Obtener todas las citas y filtrar las de hoy
       const todasLasCitas = await citaService.obtenerCitas();
-      const citasProximas = todasLasCitas.filter(cita => {
+      const citasHoy = todasLasCitas.filter(cita => {
         const fechaCita = new Date(cita.fechaHora);
-        return fechaCita > hoy && fechaCita <= proximoMes && cita.estado !== 'cancelada';
+        return fechaCita >= hoy && fechaCita < manana && cita.estado !== 'cancelada';
       }).sort((a, b) => new Date(a.fechaHora).getTime() - new Date(b.fechaHora).getTime());
       
-      setAppointments(citasProximas);
+      setAppointments(citasHoy);
       setErrorCitas(null);
     } catch (error) {
       console.error('Error al cargar las citas:', error);
-      setErrorCitas('No se pudieron cargar las citas');
+      setErrorCitas('No se pudieron cargar las citas de hoy');
     } finally {
       setLoadingCitas(false);
     }
@@ -542,7 +544,7 @@ const Dashboard = () => {
               sx={{ px: 2, pt: 2 }}
             >
               <Tab label="Citas de Hoy" />
-              <Tab label="Próximas Citas" />
+              <Tab label="Citas de Hoy" />
             </Tabs>
             
             <TabPanel value={tabValue} index={0}>
@@ -626,7 +628,7 @@ const Dashboard = () => {
                 </Alert>
               ) : appointments.length === 0 ? (
                 <Typography variant="body2" color="text.secondary" align="center">
-                  No hay próximas citas para mostrar
+                  No hay citas para hoy
                 </Typography>
               ) : (
                 <TableContainer>
@@ -791,7 +793,7 @@ const Dashboard = () => {
 
           <Card>
             <CardHeader 
-              title="Próximas Citas" 
+              title="Citas de Hoy" 
               subheader="Hoy"
             />
             <Divider />

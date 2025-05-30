@@ -1,6 +1,6 @@
 const db = require('../models');
 const logger = require('../utils/logger');
-const { ValidationError, NotFoundError, ForbiddenError } = require('../middlewares/errorHandler');
+const { ValidationError, NotFoundError, ForbiddenError } = require('../utils/errors');
 const { Op } = require('sequelize');
 
 // Para PayPal, vamos a usar una configuración más simple por ahora
@@ -10,13 +10,31 @@ const PAYPAL_CONFIG = {
   mode: process.env.PAYPAL_MODE === 'live' ? 'live' : 'sandbox'
 };
 
-class FacturaController {
-  /**
+class FacturaController {  /**
    * Crear una nueva factura
    */
   static async crearFactura(req, res, next) {
     try {
-      const { citaId, servicios, descuento = 0, impuestosPorcentaje = 19 } = req.body;
+      console.log('Datos recibidos en el backend:', req.body);
+      
+      const { 
+        citaId, 
+        clienteId, 
+        dentistaId, 
+        servicios, 
+        descuento = 0, 
+        fechaVencimiento,
+        notas = ''
+      } = req.body;
+
+      // Validaciones básicas
+      if (!citaId || !clienteId || !dentistaId) {
+        return next(new ValidationError('Se requiere citaId, clienteId y dentistaId'));
+      }
+
+      if (!servicios || !Array.isArray(servicios) || servicios.length === 0) {
+        return next(new ValidationError('Se requiere al menos un servicio'));
+      }
 
       // Verificar que la cita existe
       const cita = await db.Cita.findByPk(citaId, {
@@ -30,14 +48,33 @@ class FacturaController {
         return next(new NotFoundError('La cita especificada no existe'));
       }
 
+      // Verificar que el cliente existe
+      const cliente = await db.Cliente.findByPk(clienteId);
+      if (!cliente) {
+        return next(new NotFoundError('El cliente especificado no existe'));
+      }
+
+      // Verificar que el dentista existe
+      const dentista = await db.Dentista.findByPk(dentistaId);
+      if (!dentista) {
+        return next(new NotFoundError('El dentista especificado no existe'));
+      }
+
       // Verificar que los servicios existen y calcular totales
       let subtotal = 0;
       const serviciosFactura = [];
 
       for (const servicioData of servicios) {
-        const servicio = await db.Servicio.findByPk(servicioData.servicioId);
+        // El frontend envía 'id' en lugar de 'servicioId'
+        const servicioId = servicioData.id;
+        
+        if (!servicioId) {
+          return next(new ValidationError('Cada servicio debe tener un ID válido'));
+        }
+
+        const servicio = await db.Servicio.findByPk(servicioId);
         if (!servicio) {
-          return next(new ValidationError(`El servicio con ID ${servicioData.servicioId} no existe`));
+          return next(new ValidationError(`El servicio con ID ${servicioId} no existe`));
         }
 
         const cantidad = servicioData.cantidad || 1;
@@ -47,7 +84,7 @@ class FacturaController {
         serviciosFactura.push({
           servicioId: servicio.id,
           nombre: servicio.nombre,
-          descripcion: servicio.descripcion,
+          descripcion: servicio.descripcion || servicioData.descripcion,
           cantidad,
           precio,
           total: totalServicio
@@ -56,43 +93,67 @@ class FacturaController {
         subtotal += totalServicio;
       }
 
-      // Calcular totales
-      const montoDescuento = subtotal * (descuento / 100);
-      const baseImponible = subtotal - montoDescuento;
-      const impuestos = baseImponible * (impuestosPorcentaje / 100);
-      const total = baseImponible + impuestos;
+      // Calcular impuestos (15% por defecto)
+      const impuestos = subtotal * 0.15;
+      
+      // El descuento ya viene calculado desde el frontend en valor absoluto
+      const montoDescuento = typeof descuento === 'number' ? descuento : 0;
+      
+      // Calcular total
+      const total = subtotal + impuestos - montoDescuento;
 
-      // Establecer fecha de vencimiento (30 días por defecto)
-      const fechaVencimiento = new Date();
-      fechaVencimiento.setDate(fechaVencimiento.getDate() + 30);
+      // Usar fecha de vencimiento del frontend o establecer 30 días por defecto
+      let fechaVenc = fechaVencimiento;
+      if (!fechaVenc) {
+        const fecha = new Date();
+        fecha.setDate(fecha.getDate() + 30);
+        fechaVenc = fecha.toISOString().split('T')[0]; // Formato YYYY-MM-DD
+      }
+
+      // Generar concepto automáticamente
+      const concepto = `Servicios dentales - ${serviciosFactura.map(s => s.nombre).join(', ')}`;
 
       const factura = await db.Factura.create({
         citaId: cita.id,
-        clienteId: cita.clienteId,
-        dentistaId: cita.dentistaId,
+        clienteId: clienteId,
+        dentistaId: dentistaId,
+        concepto: concepto,
         servicios: serviciosFactura,
-        subtotal,
-        impuestos,
-        descuento: montoDescuento,
-        total,
-        fechaVencimiento
+        subtotal: parseFloat(subtotal.toFixed(2)),
+        impuestos: parseFloat(impuestos.toFixed(2)),
+        descuento: parseFloat(montoDescuento.toFixed(2)),
+        total: parseFloat(total.toFixed(2)),
+        fechaVencimiento: fechaVenc,
+        notas: notas || '',
+        estadoPago: 'pendiente'
       });
 
       // Obtener la factura completa con relaciones
       const facturaCompleta = await db.Factura.findByPk(factura.id, {
         include: [
-          { model: db.Cliente, as: 'cliente' },
-          { model: db.Dentista, as: 'dentista' },
+          { 
+            model: db.Cliente, 
+            as: 'cliente',
+            include: [{ model: db.Usuario, as: 'usuario' }]
+          },
+          { 
+            model: db.Dentista, 
+            as: 'dentista',
+            include: [{ model: db.Usuario, as: 'usuario' }]
+          },
           { model: db.Cita, as: 'cita' }
         ]
       });
+
+      console.log('Factura creada exitosamente:', facturaCompleta.id);
 
       res.status(201).json({
         status: 'success',
         data: facturaCompleta
       });
     } catch (error) {
-      logger.error(`Error al crear factura: ${error}`);
+      console.error('Error detallado al crear factura:', error);
+      logger.error(`Error al crear factura: ${error.message}`);
       next(error);
     }
   }

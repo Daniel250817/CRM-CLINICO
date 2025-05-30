@@ -353,11 +353,16 @@ const dentistaService = {
       }
     }
   },
-
   // Actualizar dentista (para admin o el propio dentista)
   actualizarDentista: async (id: string, datos: Partial<Dentista>, config?: AxiosRequestConfig) => {
-    const response = await api.patch<{ status: string; data: Dentista }>(`/dentistas/${id}`, datos, config);
-    return response.data.data;
+    try {
+      const response = await api.patch<{ status: string; data: Dentista }>(`/dentistas/${id}`, datos, config);
+      return response.data.data;
+    } catch (error: any) {
+      console.error('Error al actualizar dentista:', error);
+      console.error('Detalles del error:', error.response?.data);
+      throw error;
+    }
   }
 };
 
