@@ -35,7 +35,14 @@ export interface User {
 
 export interface AuthResponse {
   token: string;
+  refreshToken?: string;
   user: User;
+}
+
+export interface RefreshTokenResponse {
+  status: string;
+  token: string;
+  refreshToken: string;
 }
 
 export interface ApiResponse<T> {
@@ -75,15 +82,18 @@ const authService = {
   login: async (credentials: LoginCredentials): Promise<AuthResponse> => {
     try {
       const response = await api.post<any>('/auth/login', credentials);
-      
-      // Adaptamos la estructura de respuesta
+        // Adaptamos la estructura de respuesta
       const responseData: AuthResponse = {
         token: response.data.token,
+        refreshToken: response.data.refreshToken,
         user: response.data.data
       };
       
-      // Guardar token en localStorage
+      // Guardar tokens en localStorage
       localStorage.setItem('token', responseData.token);
+      if (responseData.refreshToken) {
+        localStorage.setItem('refreshToken', responseData.refreshToken);
+      }
       
       // Si rememberMe está activado, guardamos también el email para autocompletar
       if (credentials.rememberMe) {
@@ -157,11 +167,41 @@ const authService = {
       );
     }
   },
-  
   // Cerrar sesión
   logout: (): void => {
     localStorage.removeItem('token');
+    localStorage.removeItem('refreshToken');
     // Mantener el email recordado si existe
+  },
+
+  // Refrescar token de acceso
+  refreshToken: async (): Promise<RefreshTokenResponse | null> => {
+    try {
+      const refreshToken = localStorage.getItem('refreshToken');
+      if (!refreshToken) {
+        console.warn('No hay refresh token disponible');
+        return null;
+      }
+
+      const response = await api.post<RefreshTokenResponse>('/auth/refresh', {
+        refreshToken
+      });
+
+      // Actualizar tokens en localStorage
+      localStorage.setItem('token', response.data.token);
+      localStorage.setItem('refreshToken', response.data.refreshToken);
+
+      return response.data;
+    } catch (error: any) {
+      console.error('Error al refrescar token:', error);
+      
+      // Si el refresh token es inválido, limpiar tokens y cerrar sesión
+      if (error.response?.status === 401) {
+        authService.logout();
+      }
+      
+      return null;
+    }
   },
   
   // Verificar si el usuario está autenticado (tiene token)

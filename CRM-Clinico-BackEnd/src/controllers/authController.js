@@ -1,5 +1,5 @@
 const { UnauthorizedError, NotFoundError } = require('../utils/errors');
-const { generarJWT, generarTokenResetPassword } = require('../utils/jwt');
+const { generarJWT, generarTokenResetPassword, generarRefreshToken, refrescarToken, invalidarRefreshToken } = require('../utils/jwt');
 const db = require('../models');
 const logger = require('../utils/logger');
 const { authSchemas } = require('../utils/validaciones');
@@ -90,19 +90,22 @@ class AuthController {
       if (!passwordCorrecta) {
         logger.warn(`Intento de login fallido: contraseña incorrecta - ${email}`);
         return next(new UnauthorizedError('Las credenciales proporcionadas son incorrectas'));
-      }
-
-      // 3) Actualizar último login
+      }      // 3) Actualizar último login
       usuario.ultimoLogin = new Date();
       await usuario.save();
 
-      // 4) Generar JWT
+      // 4) Generar JWT y refresh token
       const token = await generarJWT(usuario.id);
+      const refreshToken = await generarRefreshToken(usuario.id);
+      
+      // 5) Guardar refresh token en la base de datos
+      await usuario.update({ refreshToken });
 
-      // 5) Respuesta
+      // 6) Respuesta
       res.status(200).json({
         status: 'success',
         token,
+        refreshToken,
         data: {
           id: usuario.id,
           nombre: usuario.nombre,
@@ -280,9 +283,56 @@ class AuthController {
       res.status(200).json({
         status: 'success',
         message: 'Contraseña actualizada correctamente'
+      });    } catch (error) {
+      logger.error(`Error en cambiarPassword: ${error}`);
+      next(error);
+    }
+  }
+  /**
+   * Refrescar token de acceso
+   */
+  static async refreshToken(req, res, next) {
+    try {
+      const { refreshToken } = req.body;
+
+      if (!refreshToken) {
+        return next(new UnauthorizedError('Refresh token requerido'));
+      }
+
+      // Refrescar el token usando la utilidad JWT
+      const tokens = await refrescarToken(refreshToken);
+
+      res.status(200).json({
+        status: 'success',
+        token: tokens.accessToken,
+        refreshToken: tokens.refreshToken
       });
     } catch (error) {
-      logger.error(`Error en cambiarPassword: ${error}`);
+      logger.error(`Error en refreshToken: ${error}`);
+      
+      // Si el refresh token es inválido, devolver 401
+      if (error.message.includes('inválido') || error.message.includes('no coincide') || error.message.includes('Usuario no encontrado')) {
+        return next(new UnauthorizedError('Refresh token inválido o expirado'));
+      }
+      
+      next(error);
+    }
+  }
+
+  /**
+   * Cerrar sesión (invalidar refresh token)
+   */
+  static async logout(req, res, next) {
+    try {
+      // Invalidar el refresh token del usuario
+      await invalidarRefreshToken(req.usuario.id);
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Sesión cerrada correctamente'
+      });
+    } catch (error) {
+      logger.error(`Error en logout: ${error}`);
       next(error);
     }
   }
