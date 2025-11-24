@@ -49,6 +49,7 @@ import {
   EventAvailable as EventAvailableIcon
 } from '@mui/icons-material';
 import { clienteService, type Cliente } from '../../services/clienteService';
+import { exportFilteredPatients } from '../../utils/excelExport';
 
 const PatientsList = () => {
   const navigate = useNavigate();
@@ -183,7 +184,7 @@ const PatientsList = () => {
     if (selectedPatient) {
       try {
         setLoading(true);
-        const perfilCompleto = await clienteService.obtenerPerfilCompleto(selectedPatient);
+        await clienteService.obtenerPerfilCompleto(selectedPatient);
         // Navegar al perfil del paciente con la pestaña de historial médico seleccionada
         navigate(`/patients/${selectedPatient}?tab=medical`);
       } catch (error) {
@@ -233,6 +234,19 @@ const PatientsList = () => {
       } finally {
         setLoading(false);
       }
+    }
+  };
+
+  const handleExportToExcel = async () => {
+    try {
+      setLoading(true);
+      await exportFilteredPatients(filteredPatients);
+      setError(null);
+    } catch (error) {
+      console.error('Error al exportar:', error);
+      setError('No se pudo exportar el archivo. Por favor, intente de nuevo.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -385,6 +399,8 @@ const PatientsList = () => {
           <Button
             variant="outlined"
             startIcon={<CloudDownloadIcon />}
+            onClick={handleExportToExcel}
+            disabled={loading || filteredPatients.length === 0}
           >
             Exportar
           </Button>
@@ -417,7 +433,6 @@ const PatientsList = () => {
               <TableRow>
                 <TableCell>Paciente</TableCell>
                 <TableCell>Contacto</TableCell>
-                <TableCell>Estado</TableCell>
                 <TableCell>Última Visita</TableCell>
                 <TableCell>Próxima Cita</TableCell>
                 <TableCell align="right">Acciones</TableCell>
@@ -426,19 +441,19 @@ const PatientsList = () => {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
                     <CircularProgress size={24} />
                   </TableCell>
                 </TableRow>
               ) : error ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
                     <Alert severity="error">{error}</Alert>
                   </TableCell>
                 </TableRow>
               ) : filteredPatients.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={6} align="center" sx={{ py: 3 }}>
+                  <TableCell colSpan={5} align="center" sx={{ py: 3 }}>
                     <Typography variant="body1" color="text.secondary">
                       No se encontraron pacientes
                     </Typography>
@@ -487,29 +502,6 @@ const PatientsList = () => {
                             <PhoneIcon fontSize="small" color="action" sx={{ mr: 1 }} />
                             <Typography variant="body2">{patient.phone}</Typography>
                           </Box>
-                        </Box>
-                      </TableCell>
-                      <TableCell>
-                        <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
-                          <Chip 
-                            label={patient.status === 'active' ? 'Activo' : 'Inactivo'} 
-                            color={patient.status === 'active' ? 'success' : 'default'}
-                            size="small"
-                            sx={{ width: 'fit-content' }}
-                          />
-                          {patient.treatmentStatus && (
-                            <Chip 
-                              label={patient.treatmentStatus} 
-                              color={
-                                patient.treatmentStatus === 'En tratamiento' ? 'primary' :
-                                patient.treatmentStatus === 'Pendiente' ? 'warning' :
-                                patient.treatmentStatus === 'Completado' ? 'success' : 'default'
-                              }
-                              size="small"
-                              variant="outlined"
-                              sx={{ width: 'fit-content' }}
-                            />
-                          )}
                         </Box>
                       </TableCell>
                       <TableCell>
