@@ -100,10 +100,14 @@ module.exports = (sequelize) => {
     resetPasswordExpires: {
       type: DataTypes.DATE,
       allowNull: true
-    },
-    ultimoLogin: {
+    },    ultimoLogin: {
       type: DataTypes.DATE,
       allowNull: true
+    },
+    refreshToken: {
+      type: DataTypes.TEXT,
+      allowNull: true,
+      comment: 'Token de actualización para renovar tokens de acceso'
     }
   }, {
     sequelize,

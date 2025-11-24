@@ -24,17 +24,38 @@ apiClient.interceptors.request.use(
   }
 );
 
-// Interceptor para manejar respuestas (manejo global de errores)
+// Interceptor para manejar respuestas (manejo global de errores y refresh de tokens)
 apiClient.interceptors.response.use(
   (response) => response,
-  (error) => {
-    // Si el error es 401 (No autorizado)
-    if (error.response?.status === 401) {
-      const isAuthError = error.response.data?.message?.toLowerCase().includes('token') ||
-                       error.response.data?.message?.toLowerCase().includes('sesión');
+  async (error) => {
+    const originalRequest = error.config;
+
+    // Si el error es 401 (Token expirado) y no hemos intentado hacer refresh
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      const isTokenError = error.response.data?.message?.toLowerCase().includes('token') ||
+                          error.response.data?.message?.toLowerCase().includes('expirado') ||
+                          error.response.data?.message?.toLowerCase().includes('inválido');
       
-      if (isAuthError) {
+      if (isTokenError) {
+        originalRequest._retry = true;
+
+        try {
+          // Importar authService dinámicamente para evitar dependencias circulares
+          const { authService } = await import('./authService');
+          const refreshResult = await authService.refreshToken();
+          
+          if (refreshResult) {
+            // Actualizar el header de autorización y reenviar la solicitud original
+            originalRequest.headers.Authorization = `Bearer ${refreshResult.token}`;
+            return apiClient(originalRequest);
+          }
+        } catch (refreshError) {
+          console.error('Error al refrescar token:', refreshError);
+        }
+
+        // Si llegamos aquí, el refresh falló, redirigir al login
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         if (!window.location.pathname.includes('/login')) {
           localStorage.setItem('redirectUrl', window.location.pathname);
           window.location.href = '/login';

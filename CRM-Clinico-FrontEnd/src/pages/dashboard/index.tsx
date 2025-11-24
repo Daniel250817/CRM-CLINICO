@@ -619,7 +619,7 @@ const Dashboard = () => {
             </TabPanel>
             <TabPanel value={tabValue} index={1}>
               {loadingCitas ? (
-                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'center', p: 2}}>
                   <CircularProgress size={24} />
                 </Box>
               ) : errorCitas ? (
