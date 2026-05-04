@@ -27,7 +27,6 @@ import {
   Forum as ForumIcon,
   SupervisorAccount as SupervisorAccountIcon,
   Analytics as AnalyticsIcon,
-  AttachMoney as BillingIcon,
 } from '@mui/icons-material';
 import { useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -51,6 +50,7 @@ const Sidebar: React.FC<SidebarProps> = ({ open, drawerWidth, onDrawerToggle }) 
   const location = useLocation();
   const { user } = useAuth();
   const [openSubmenu, setOpenSubmenu] = useState<string | null>(null);
+  const isAdmin = user?.rol === 'admin';
 
   const handleSubmenuClick = (title: string) => {
     setOpenSubmenu(openSubmenu === title ? null : title);
@@ -108,17 +108,6 @@ const Sidebar: React.FC<SidebarProps> = ({ open, drawerWidth, onDrawerToggle }) 
       roles: ['admin', 'dentista']
     },
     {
-      title: 'Facturación',
-      path: '/billing',
-      icon: <BillingIcon />,
-      roles: ['admin', 'dentista'],
-      children: [
-        { title: 'Facturas', path: '/billing' },
-        { title: 'Nueva Factura', path: '/billing/new' },
-        { title: 'Pagos', path: '/billing/payments' }
-      ]
-    },
-    {
       title: 'Tareas y Notas',
       path: '/tasks',
       icon: <AssignmentIcon />,
@@ -167,14 +156,25 @@ const Sidebar: React.FC<SidebarProps> = ({ open, drawerWidth, onDrawerToggle }) 
     }
   ];
 
-  // Filtrar elementos del menú según el rol del usuario
-  const filteredMainNavItems = mainNavItems.filter(
-    item => !item.roles || (user && item.roles.includes(user.rol))
-  );
+  const nonAdminMainItems = new Set([
+    'Dashboard',
+    'Pacientes',
+    'Citas',
+    'Tareas y Notas'
+  ]);
 
-  const filteredSecondaryNavItems = secondaryNavItems.filter(
-    item => !item.roles || (user && item.roles.includes(user.rol))
-  );
+  // Para roles no administradores, mostramos solo las secciones permitidas.
+  const filteredMainNavItems = isAdmin
+    ? mainNavItems.filter(item => !item.roles || (user && item.roles.includes(user.rol)))
+    : mainNavItems
+        .filter(item => nonAdminMainItems.has(item.title))
+        .map(item => ({ ...item, children: undefined }));
+
+  const filteredSecondaryNavItems = isAdmin
+    ? secondaryNavItems.filter(item => !item.roles || (user && item.roles.includes(user.rol)))
+    : secondaryNavItems
+        .filter(item => item.title === 'Configuración')
+        .map(item => ({ ...item, children: undefined }));
 
   const drawer = (
     <Box sx={{ display: 'flex', flexDirection: 'column', height: '100%' }}>

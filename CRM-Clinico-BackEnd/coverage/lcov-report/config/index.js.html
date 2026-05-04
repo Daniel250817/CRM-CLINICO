@@ -1,0 +1,124 @@
+
+<!doctype html>
+<html lang="en">
+
+<head>
+    <title>Code coverage report for config/index.js</title>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="../prettify.css" />
+    <link rel="stylesheet" href="../base.css" />
+    <link rel="shortcut icon" type="image/x-icon" href="../favicon.png" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style type='text/css'>
+        .coverage-summary .sorter {
+            background-image: url(../sort-arrow-sprite.png);
+        }
+    </style>
+</head>
+    
+<body>
+<div class='wrapper'>
+    <div class='pad1'>
+        <h1><a href="../index.html">All files</a> / <a href="index.html">config</a> index.js</h1>
+        <div class='clearfix'>
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Statements</span>
+                <span class='fraction'>2/2</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">50% </span>
+                <span class="quiet">Branches</span>
+                <span class='fraction'>9/18</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Functions</span>
+                <span class='fraction'>0/0</span>
+            </div>
+        
+            
+            <div class='fl pad1y space-right2'>
+                <span class="strong">100% </span>
+                <span class="quiet">Lines</span>
+                <span class='fraction'>2/2</span>
+            </div>
+        
+            
+        </div>
+        <p class="quiet">
+            Press <em>n</em> or <em>j</em> to go to the next uncovered block, <em>b</em>, <em>p</em> or <em>k</em> for the previous block.
+        </p>
+        <template id="filterTemplate">
+            <div class="quiet">
+                Filter:
+                <input type="search" id="fileSearch">
+            </div>
+        </template>
+    </div>
+    <div class='status-line high'></div>
+    <pre><table class="coverage">
+<tr><td class="line-count quiet"><a name='L1'></a><a href='#L1'>1</a>
+<a name='L2'></a><a href='#L2'>2</a>
+<a name='L3'></a><a href='#L3'>3</a>
+<a name='L4'></a><a href='#L4'>4</a>
+<a name='L5'></a><a href='#L5'>5</a>
+<a name='L6'></a><a href='#L6'>6</a>
+<a name='L7'></a><a href='#L7'>7</a>
+<a name='L8'></a><a href='#L8'>8</a>
+<a name='L9'></a><a href='#L9'>9</a>
+<a name='L10'></a><a href='#L10'>10</a>
+<a name='L11'></a><a href='#L11'>11</a>
+<a name='L12'></a><a href='#L12'>12</a>
+<a name='L13'></a><a href='#L13'>13</a>
+<a name='L14'></a><a href='#L14'>14</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-yes">4x</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span>
+<span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">require('dotenv').config();
+&nbsp;
+module.exports = {
+  port: process.env.PORT || <span class="branch-1 cbranch-no" title="branch not covered" >3001,</span>
+  environment: process.env.NODE_ENV || <span class="branch-1 cbranch-no" title="branch not covered" >'development',</span>
+  jwtSecret: process.env.JWT_SECRET || <span class="branch-1 cbranch-no" title="branch not covered" >'7355bf975c5edac3b3ae6af52f2c50666bcc2120e6c7c23fff864bfb729c700b9e4de45376d8777129216270c464d93502fdc73a0824f036d0877fd78aa5d7c7',</span>
+  jwtExpiresIn: process.env.JWT_EXPIRES_IN || <span class="branch-1 cbranch-no" title="branch not covered" >'15m',</span> // Tokens de acceso más cortos
+  jwtRefreshSecret: process.env.JWT_REFRESH_SECRET || <span class="branch-1 cbranch-no" title="branch not covered" >'b8f7c9e3a2d4f6h8j9k1m3n5p7q9r2s4t6u8v0w2x4y6z8a0b2c4d6e8f0g2h4j6k8l0m2n4o6p8q0r2s4t6u8v0w2x4y6z8',</span>
+  jwtRefreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN || <span class="branch-1 cbranch-no" title="branch not covered" >'7d',</span> // Refresh tokens de larga duración
+  logLevel: process.env.LOG_LEVEL || <span class="branch-1 cbranch-no" title="branch not covered" >'info',</span>
+  rateLimitWindow: parseInt(process.env.RATE_LIMIT_WINDOW) || <span class="branch-1 cbranch-no" title="branch not covered" >15,</span> // en minutos
+  rateLimitMax: parseInt(process.env.RATE_LIMIT_MAX) || <span class="branch-1 cbranch-no" title="branch not covered" >100 </span>// máximo de solicitudes por ventana
+};
+&nbsp;</pre></td></tr></table></pre>
+
+                <div class='push'></div><!-- for sticky footer -->
+            </div><!-- /wrapper -->
+            <div class='footer quiet pad2 space-top1 center small'>
+                Code coverage generated by
+                <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
+                at 2026-04-30T00:49:52.842Z
+            </div>
+        <script src="../prettify.js"></script>
+        <script>
+            window.onload = function () {
+                prettyPrint();
+            };
+        </script>
+        <script src="../sorter.js"></script>
+        <script src="../block-navigation.js"></script>
+    </body>
+</html>
+    

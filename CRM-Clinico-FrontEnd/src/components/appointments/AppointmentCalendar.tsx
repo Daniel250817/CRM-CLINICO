@@ -4,7 +4,6 @@ import {
   Card, 
   CardHeader, 
   CardContent,
-  Grid as MuiGrid,
   Paper,
   Typography,
   Button,
@@ -22,7 +21,6 @@ import {
   CircularProgress,
   Alert,
   Chip,
-  ListItemText
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -31,12 +29,12 @@ import {
   NavigateBefore as NavigateBeforeIcon,
   NavigateNext as NavigateNextIcon,
   Today as TodayIcon,
-  ArrowDropDown as ArrowDropDownIcon,
   AccessTime as AccessTimeIcon,
-  Person as PersonIcon,  Edit as EditIcon,
-  History as HistoryIcon,  Close as CloseIcon,
-  Save as SaveIcon,
+  Person as PersonIcon,
+  Edit as EditIcon,
   Delete as DeleteIcon,
+  Close as CloseIcon,
+  Save as SaveIcon,
   Visibility as VisibilityIcon,
   EventNote as EventNoteIcon
 } from '@mui/icons-material';
@@ -44,7 +42,6 @@ import { DateTimePicker } from '@mui/x-date-pickers/DateTimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import FullCalendar from '@fullcalendar/react';
-import type { CalendarApi } from '@fullcalendar/core';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
@@ -77,7 +74,6 @@ interface DentistaConHorario extends Dentista {
 
 import { citaService, type Cita } from '../../services/citaService';
 import { clienteService, type Cliente } from '../../services/clienteService';
-import { useNavigate } from 'react-router-dom';
 import { useNotification } from '../../contexts/NotificationContext';
 import { servicioService, type Servicio } from '../../services/servicioService';
 
@@ -107,29 +103,6 @@ interface NewAppointmentFormData {
   notes: string;
 }
 
-interface CitaResponse {
-  id: string;
-  fechaHora: string;
-  duracion: number;
-  estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada';
-  servicio: {
-    id: string;
-    nombre: string;
-  };
-  dentista: {
-    id: string;
-    usuario: {
-      nombre: string;
-    }
-  };
-  cliente: {
-    id: string;
-    usuario: {
-      nombre: string;
-    }
-  };
-}
-
 interface NuevaCitaDTO {
   clienteId: number;
   dentistaId: number;
@@ -140,31 +113,11 @@ interface NuevaCitaDTO {
   estado: 'pendiente' | 'confirmada' | 'completada' | 'cancelada';
 }
 
-interface Patient {
-  id: string;
-  name: string;
-}
-
-interface Service {
-  id: number;
-  nombre: string;
-  duracion: number;
-  precio: number;
-}
-
-interface PatientActions {
-  viewProfile: (id: string) => void;
-  createAppointment: (id: string) => void;
-  viewHistory: (id: string) => void;
-  editPatient: (id: string) => void;
-}
-
 const AppointmentCalendar = () => {
   const { addNotification } = useNotification();
   const [view, setView] = useState<'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'>('timeGridWeek');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [openNewAppointment, setOpenNewAppointment] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<dayjs.Dayjs | null>(null);
   const [selectedAppointment, setSelectedAppointment] = useState<Appointment | null>(null);
   const [openAppointmentDetails, setOpenAppointmentDetails] = useState(false);
   const [dentistas, setDentistas] = useState<Dentista[]>([]);
@@ -191,7 +144,6 @@ const AppointmentCalendar = () => {
 
   // Referencia al calendario
   const calendarRef = useRef<FullCalendar>(null);
-  const navigate = useNavigate();
 
   // Añadir un estado para el diálogo de horarios
   const [horariosDentistaSeleccionado, setHorariosDentistaSeleccionado] = useState<HorariosDentistaSeleccionado | null>(null);
@@ -204,6 +156,8 @@ const AppointmentCalendar = () => {
   // Añadir nuevos estados para el diálogo de selección manual de paciente
   const [openPatientSelector, setOpenPatientSelector] = useState(false);
   const [tempAppointmentData, setTempAppointmentData] = useState<any>(null);
+  const [openFilters, setOpenFilters] = useState(false);
+  const [selectedStatusFilters, setSelectedStatusFilters] = useState<Array<'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió'>>([]);
 
   // Cargar pacientes
   useEffect(() => {
@@ -342,14 +296,29 @@ const AppointmentCalendar = () => {
       timezone: dayjs.tz.guess(),
       offset: selectedDate.format('Z')
     });
-    
-    setSelectedDate(selectedDate);
+
     setNewAppointmentData({
       ...newAppointmentData,
       dateTime: selectedDate
     });
     setOpenNewAppointment(true);
   };
+
+  const toggleStatusFilter = (status: 'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió') => {
+    setSelectedStatusFilters(prev =>
+      prev.includes(status)
+        ? prev.filter(item => item !== status)
+        : [...prev, status]
+    );
+  };
+
+  const clearStatusFilters = () => {
+    setSelectedStatusFilters([]);
+  };
+
+  const visibleCalendarEvents = selectedStatusFilters.length > 0
+    ? calendarEvents.filter(event => selectedStatusFilters.includes(event.extendedProps.status))
+    : calendarEvents;
 
   // Gestionar el cambio de vista del calendario
   const handleViewChange = (newView: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') => {
@@ -758,70 +727,6 @@ const AppointmentCalendar = () => {
       </Paper>
     ));
   };
-
-  // Acciones para pacientes
-  const patientActions: PatientActions = {
-    viewProfile: (id: string) => {
-      navigate(`/patients/${id}`);
-    },
-    createAppointment: (id: string) => {
-      setNewAppointmentData(prev => ({
-        ...prev,
-        patient: id
-      }));
-      setOpenNewAppointment(true);
-    },
-    viewHistory: async (id: string) => {
-      try {
-        const historial = await clienteService.obtenerPerfilCompleto(id);
-        // Aquí podrías abrir un modal para mostrar el historial
-        console.log('Historial del paciente:', historial);
-      } catch (error) {
-        console.error('Error al obtener historial:', error);
-      }
-    },
-    editPatient: (id: string) => {
-      navigate(`/patients/${id}/edit`);
-    }
-  };
-
-  // Renderizar menú de acciones para paciente
-  const renderPatientActions = (patient: Cliente) => (
-    <Box sx={{ display: 'flex', gap: 1 }}>
-      <Tooltip title="Ver perfil">
-        <IconButton 
-          size="small"
-          onClick={() => patientActions.viewProfile(patient.id)}
-        >
-          <PersonIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title="Nueva cita">
-        <IconButton 
-          size="small"
-          onClick={() => patientActions.createAppointment(patient.id)}
-        >
-          <AddIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title="Ver historial">
-        <IconButton 
-          size="small"
-          onClick={() => patientActions.viewHistory(patient.id)}
-        >
-          <HistoryIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-      <Tooltip title="Editar paciente">
-        <IconButton 
-          size="small"
-          onClick={() => patientActions.editPatient(patient.id)}
-        >
-          <EditIcon fontSize="small" />
-        </IconButton>
-      </Tooltip>
-    </Box>
-  );
 
   // Modificar el selector de pacientes en el formulario
   const renderPatientSelector = () => (
@@ -1403,14 +1308,13 @@ const AppointmentCalendar = () => {
             color="primary"
             startIcon={<AddIcon />}
             onClick={() => {
-              setSelectedDate(dayjs());
               setOpenNewAppointment(true);
             }}
           >
             Nueva Cita
           </Button>
           <Tooltip title="Filtrar">
-            <IconButton>
+            <IconButton onClick={() => setOpenFilters(true)}>
               <FilterListIcon />
             </IconButton>
           </Tooltip>
@@ -1452,7 +1356,7 @@ const AppointmentCalendar = () => {
                 }}
                 eventClick={handleEventClick}
                 select={handleDateSelect}
-                events={calendarEvents}
+                events={visibleCalendarEvents}
                 eventContent={eventContent}
                 selectable={true}
                 editable={true}
@@ -1640,7 +1544,7 @@ const AppointmentCalendar = () => {
                   </Typography>
                 </Box>
               ) : (
-                proximasCitas.map((cita, index) => (
+                proximasCitas.map((cita) => (
                   <Paper
                     key={cita.id}
                     elevation={1}
@@ -1751,6 +1655,7 @@ const AppointmentCalendar = () => {
               <Stack spacing={3}>
                 {/* Sección de Fecha y Hora */}
                 <Box>
+
                   <Typography variant="subtitle1" gutterBottom>
                     Fecha y Hora de la Cita
                   </Typography>
@@ -2260,6 +2165,43 @@ const AppointmentCalendar = () => {
           </Button>
         </DialogActions>
       </Dialog>
+
+      <Dialog open={openFilters} onClose={() => setOpenFilters(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ pb: 1 }}>Filtrar citas</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Selecciona uno o más estados para mostrar en el calendario.
+          </Typography>
+          <Stack direction="row" useFlexGap flexWrap="wrap" gap={1}>
+            {[
+              { value: 'pendiente', label: 'Pendiente', color: 'warning' as const },
+              { value: 'confirmada', label: 'Confirmada', color: 'success' as const },
+              { value: 'completada', label: 'Completada', color: 'info' as const },
+              { value: 'cancelada', label: 'Cancelada', color: 'error' as const },
+              { value: 'no asistió', label: 'No asistió', color: 'default' as const }
+            ].map(item => {
+              const status = item.value as 'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió';
+
+              return (
+                <Chip
+                  key={item.value}
+                  label={item.label}
+                  onClick={() => toggleStatusFilter(status)}
+                  variant={selectedStatusFilters.includes(status) ? 'filled' : 'outlined'}
+                  color={item.color}
+                />
+              );
+            })}
+          </Stack>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={clearStatusFilters}>Limpiar</Button>
+          <Button onClick={() => setOpenFilters(false)} variant="contained">
+            Aplicar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
     </Box>
   );
 };

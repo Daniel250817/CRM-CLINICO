@@ -234,7 +234,7 @@ router.get('/:id', dentistaController.obtenerPerfil);
  *       403:
  *         $ref: '#/components/responses/Forbidden'
  */
-router.patch('/perfil', restringirA('dentista'), validarDatos(dentistaSchemas.crearDentista), dentistaController.actualizarDentista);
+router.patch('/perfil', restringirA('dentista'), validarDatos(dentistaSchemas.actualizarDentista), dentistaController.actualizarDentista);
 
 /**
  * @swagger
@@ -301,6 +301,6 @@ router.post('/', restringirA('admin'), validarDatos(dentistaSchemas.crearDentist
  *       404:
  *         $ref: '#/components/responses/NotFound'
  */
-router.patch('/:id', restringirA('admin'), validarDatos(dentistaSchemas.crearDentista), dentistaController.actualizarDentista);
+router.patch('/:id', restringirA('admin'), validarDatos(dentistaSchemas.actualizarDentista), dentistaController.actualizarDentista);
 
 module.exports = router;

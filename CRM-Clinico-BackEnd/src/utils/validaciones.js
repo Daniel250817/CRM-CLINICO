@@ -131,9 +131,33 @@ const clienteSchemas = {
  * Esquemas de validación para Dentistas
  */
 const dentistaSchemas = {
-  // Esquema para crear/actualizar dentista
+  // Esquema para crear dentista
   crearDentista: z.object({
-    userId: z.union([z.string(), z.number()]).transform(val => parseInt(val, 10)), // Acepta string o número y lo convierte a entero
+    userId: z.union([z.string().min(1, 'El usuario es requerido'), z.number().int().positive()]).transform(val => {
+      const parsed = parseInt(String(val), 10);
+      if (isNaN(parsed) || parsed <= 0) {
+        throw new Error('El usuario debe ser un ID válido');
+      }
+      return parsed;
+    }), // Acepta string o número y lo convierte a entero, valida que sea positivo
+    especialidad: z.string().optional(),
+    horarioTrabajo: z.union([
+      z.string(), // Acepta string para JSON serializado
+      z.record(z.array(z.object({
+        inicio: z.string(),
+        fin: z.string()
+      })))
+    ]).optional(),
+    status: z.enum(['activo', 'inactivo', 'vacaciones']).optional(),
+    titulo: z.string().optional(),
+    numeroColegiado: z.string().optional(),
+    añosExperiencia: z.union([z.number().int().min(0), z.string().transform(val => val ? parseInt(val, 10) : undefined)]).optional(),
+    biografia: z.string().optional()
+  }),
+  
+  // Esquema para actualizar dentista - userId es opcional
+  actualizarDentista: z.object({
+    userId: z.union([z.string(), z.number()]).transform(val => parseInt(String(val), 10)).optional(), // userId es opcional en actualización
     especialidad: z.string().optional(),
     horarioTrabajo: z.union([
       z.string(), // Acepta string para JSON serializado

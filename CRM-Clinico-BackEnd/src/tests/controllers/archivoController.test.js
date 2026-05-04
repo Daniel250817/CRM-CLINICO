@@ -1,26 +1,55 @@
 const request = require('supertest');
 const path = require('path');
 const fs = require('fs');
-const app = require('../server');
-const { Cliente } = require('../models/Cliente');
-const { Cita } = require('../models/Cita');
+const express = require('express');
+const archivoController = require('../../controllers/archivoController');
+const { uploadMedicalRecord, uploadXray, handleMulterError } = require('../../middlewares/fileUpload');
+const { Cliente } = require('../../models/Cliente');
+const { Cita } = require('../../models/Cita');
 
 // Mock dependencies
-jest.mock('../models/Cliente');
-jest.mock('../models/Cita');
+jest.mock('../../models/Cliente');
+jest.mock('../../models/Cita');
 jest.mock('fs', () => ({
   ...jest.requireActual('fs'),
   unlinkSync: jest.fn(),
   existsSync: jest.fn(() => true),
   mkdirSync: jest.fn()
 }));
-jest.mock('../middlewares/auth', () => ({
-  verificarToken: (req, res, next) => {
-    req.usuario = { id: 1, rol: 'admin' };
-    next();
-  },
-  verificarRol: (roles) => (req, res, next) => next()
-}));
+let app;
+
+beforeAll(() => {
+  app = express();
+  app.use(express.json());
+
+  app.post(
+    '/api/archivos/medical-records/:clienteId',
+    uploadMedicalRecord.single('file'),
+    handleMulterError,
+    (req, res, next) => archivoController.uploadMedicalRecord(req, res, next)
+  );
+
+  app.post(
+    '/api/archivos/xrays/:citaId',
+    uploadXray.single('file'),
+    handleMulterError,
+    (req, res, next) => archivoController.uploadXray(req, res, next)
+  );
+
+  app.get('/api/archivos/medical-records/:clienteId', (req, res, next) => {
+    archivoController.getMedicalRecord(req, res, next);
+  });
+
+  app.get('/api/archivos/xrays/:citaId', (req, res, next) => {
+    archivoController.getXray(req, res, next);
+  });
+
+  app.use((err, req, res, next) => {
+    res.status(err.statusCode || 500).json({
+      message: err.message
+    });
+  });
+});
 
 describe('Archivo Controller', () => {
   beforeEach(() => {

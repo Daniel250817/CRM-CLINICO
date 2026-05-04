@@ -19,9 +19,7 @@ import {
   HealthAndSafety as HealthIcon,
   MedicalServices as DentistIcon,
   Settings as SettingsIcon,
-  Help as HelpIcon,
-  Assignment as AssignmentIcon,
-  Receipt as ReceiptIcon
+  Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../contexts/AuthContext';
@@ -37,20 +35,35 @@ const SideNav: React.FC<SideNavProps> = ({ open, drawerWidth, onClose }) => {
   const location = useLocation();
   const theme = useTheme();
   const isMobile = useMediaQuery(theme.breakpoints.down('sm'));
-  const { user } = useAuth();  const menuItems = [
-    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard' },
-    { text: 'Citas', icon: <CalendarIcon />, path: '/appointments/calendar' },
-    { text: 'Pacientes', icon: <PeopleIcon />, path: '/patients/list' },
-    { text: 'Dentistas', icon: <DentistIcon />, path: '/dentistas' },
-    { text: 'Servicios', icon: <HealthIcon />, path: '/services' },
-    { text: 'Tareas y Notas', icon: <AssignmentIcon />, path: '/tasks' },
-    { text: 'Facturación', icon: <ReceiptIcon />, path: '/billing' },
+  const { user } = useAuth();
+  const isAdmin = user?.rol === 'admin';
+
+  const menuItems = [
+    { text: 'Dashboard', icon: <DashboardIcon />, path: '/dashboard', roles: ['admin', 'dentista', 'asistente'] },
+    { text: 'Citas', icon: <CalendarIcon />, path: '/appointments/calendar', roles: ['admin', 'dentista', 'asistente', 'cliente'] },
+    { text: 'Pacientes', icon: <PeopleIcon />, path: '/patients/list', roles: ['admin', 'dentista', 'asistente'] },
+    { text: 'Dentistas', icon: <DentistIcon />, path: '/dentistas', roles: ['admin'] },
+    { text: 'Servicios', icon: <HealthIcon />, path: '/services', roles: ['admin'] },
+    { text: 'Tareas y Notas', icon: <AssignmentIcon />, path: '/tasks', roles: ['admin', 'dentista', 'asistente'] },
   ];
   
   const bottomMenuItems = [
-    { text: 'Configuración', icon: <SettingsIcon />, path: '/settings' },
+    { text: 'Configuración', icon: <SettingsIcon />, path: '/settings', roles: ['admin', 'dentista', 'asistente'] },
     // { text: 'Ayuda', icon: <HelpIcon />, path: '/help' },
   ];
+
+  const isCliente = user?.rol === 'cliente';
+  const allowedNonAdminMainItems = new Set(['Dashboard', 'Pacientes', 'Citas', 'Tareas y Notas']);
+
+  const filteredMenuItems = isCliente
+    ? menuItems.filter(item => item.text === 'Citas')
+    : isAdmin
+    ? menuItems.filter(item => !item.roles || (user && item.roles.includes(user.rol)))
+    : menuItems.filter(item => allowedNonAdminMainItems.has(item.text));
+
+  const filteredBottomMenuItems = isCliente
+    ? []
+    : bottomMenuItems.filter(item => !item.roles || (user && item.roles.includes(user.rol)));
 
   const handleNavigation = (path: string) => {
     navigate(path);
@@ -85,7 +98,7 @@ const SideNav: React.FC<SideNavProps> = ({ open, drawerWidth, onClose }) => {
       
       <Box sx={{ overflow: 'auto', display: 'flex', flexDirection: 'column', height: '100%' }}>
         <List>
-          {menuItems.map((item) => (
+          {filteredMenuItems.map((item) => (
             <ListItem key={item.text} disablePadding>
               <ListItemButton 
                 onClick={() => handleNavigation(item.path)}
@@ -115,7 +128,7 @@ const SideNav: React.FC<SideNavProps> = ({ open, drawerWidth, onClose }) => {
         
         <Divider />
         <List>
-          {bottomMenuItems.map((item) => (
+          {filteredBottomMenuItems.map((item) => (
             <ListItem key={item.text} disablePadding>
               <ListItemButton 
                 onClick={() => handleNavigation(item.path)}

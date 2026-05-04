@@ -1,17 +1,26 @@
 // Setup file for Jest tests
 const { sequelize } = require('../config/database');
-const logger = require('../utils/logger');
 
 // Disable logging during tests
 jest.mock('../utils/logger', () => ({
   info: jest.fn(),
   error: jest.fn(),
   warn: jest.fn(),
-  debug: jest.fn()
+  debug: jest.fn(),
+  http: jest.fn()
 }));
 
 // Global setup - runs once before all tests
 beforeAll(async () => {
+  if (
+    process.env.SKIP_DB_CONNECT === 'true' ||
+    !process.env.DB_HOST ||
+    !process.env.DB_NAME ||
+    !process.env.DB_USER
+  ) {
+    return;
+  }
+
   // Connect to the test database
   try {
     await sequelize.authenticate();
@@ -24,6 +33,15 @@ beforeAll(async () => {
 
 // Global teardown - runs once after all tests
 afterAll(async () => {
+  if (
+    process.env.SKIP_DB_CONNECT === 'true' ||
+    !process.env.DB_HOST ||
+    !process.env.DB_NAME ||
+    !process.env.DB_USER
+  ) {
+    return;
+  }
+
   // Close the database connection
   await sequelize.close();
   console.log('Database connection closed after testing.');

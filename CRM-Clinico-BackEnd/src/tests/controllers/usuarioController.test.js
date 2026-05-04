@@ -1,17 +1,40 @@
 const request = require('supertest');
-const app = require('../server'); // Adjust path if needed
-const { Usuario } = require('../models/Usuario');
-const { verifyToken } = require('../utils/jwt');
+const app = require('../../server');
+const db = require('../../models');
 
 // Mock dependencies
-jest.mock('../models/Usuario');
-jest.mock('../utils/jwt');
-jest.mock('../middlewares/auth', () => ({
-  verificarToken: (req, res, next) => next(),
-  verificarRol: (roles) => (req, res, next) => {
-    req.usuario = { id: 1, rol: 'admin' };
-    next();
+jest.mock('../../models', () => ({
+  Usuario: {
+    findAll: jest.fn(),
+    findByPk: jest.fn()
+  },
+  Cliente: {
+    findOne: jest.fn()
+  },
+  Dentista: {
+    findOne: jest.fn()
+  },
+  UserSettings: {
+    findOne: jest.fn(),
+    create: jest.fn()
   }
+}));
+
+jest.mock('../../middlewares/auth', () => ({
+  protegerRuta: (req, res, next) => {
+    req.usuario = {
+      id: 1,
+      rol: 'admin',
+      nombre: 'Admin User',
+      email: 'admin@example.com',
+      telefono: '1234567890',
+      ultimoLogin: null,
+      createdAt: new Date(),
+      updatedAt: new Date()
+    };
+    next();
+  },
+  restringirA: () => (req, res, next) => next()
 }));
 
 describe('Usuario Controller', () => {
@@ -41,7 +64,7 @@ describe('Usuario Controller', () => {
       ];
       
       // Mock Usuario.findAll
-      Usuario.findAll.mockResolvedValue(mockUsers);
+      db.Usuario.findAll.mockResolvedValue(mockUsers);
       
       const response = await request(app)
         .get('/api/users')
@@ -49,84 +72,34 @@ describe('Usuario Controller', () => {
         
       // Assertions
       expect(response.statusCode).toBe(200);
-      expect(response.body).toHaveLength(2);
-      expect(Usuario.findAll).toHaveBeenCalled();
+      expect(response.body).toHaveProperty('status', 'success');
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveLength(2);
+      expect(db.Usuario.findAll).toHaveBeenCalled();
     });
   });
 
   describe('GET /api/users/me', () => {
     it('should return the current user profile', async () => {
-      // Mock user
-      const mockUser = {
+      const mockSettings = {
         id: 1,
-        nombre: 'Test User',
-        email: 'test@example.com',
-        rol: 'cliente',
-        telefono: '1234567890'
+        userId: 1,
+        theme: 'light',
+        language: 'es'
       };
-      
-      // Set up request with mocked auth middleware
-      const mockedMiddleware = (req, res, next) => {
-        req.usuario = { id: 1 };
-        next();
-      };
-      
-      // Mock Usuario.findByPk
-      Usuario.findByPk.mockResolvedValue(mockUser);
-      
-      // Replace the middleware temporarily
-      const originalMiddleware = app._router.stack.find(layer => layer.name === 'verificarToken');
-      const originalIndex = app._router.stack.indexOf(originalMiddleware);
-      if (originalIndex !== -1) {
-        app._router.stack[originalIndex] = { ...originalMiddleware, handle: mockedMiddleware };
-      }
-      
-      const response = await request(app)
-        .get('/api/users/me')
-        .set('Authorization', 'Bearer fake-jwt-token');
-        
-      // Reset middleware
-      if (originalIndex !== -1) {
-        app._router.stack[originalIndex] = originalMiddleware;
-      }
-        
-      // Assertions
-      expect(response.statusCode).toBe(200);
-      expect(response.body).toEqual(mockUser);
-      expect(Usuario.findByPk).toHaveBeenCalledWith(1, { 
-        attributes: { exclude: ['password'] } 
-      });
-    });
 
-    it('should return 404 if user not found', async () => {
-      // Set up request with mocked auth middleware
-      const mockedMiddleware = (req, res, next) => {
-        req.usuario = { id: 999 }; // Non-existent ID
-        next();
-      };
-      
-      // Mock Usuario.findByPk to return null (user not found)
-      Usuario.findByPk.mockResolvedValue(null);
-      
-      // Replace the middleware temporarily
-      const originalMiddleware = app._router.stack.find(layer => layer.name === 'verificarToken');
-      const originalIndex = app._router.stack.indexOf(originalMiddleware);
-      if (originalIndex !== -1) {
-        app._router.stack[originalIndex] = { ...originalMiddleware, handle: mockedMiddleware };
-      }
-      
+      db.UserSettings.findOne.mockResolvedValue(mockSettings);
+
       const response = await request(app)
         .get('/api/users/me')
         .set('Authorization', 'Bearer fake-jwt-token');
-        
-      // Reset middleware
-      if (originalIndex !== -1) {
-        app._router.stack[originalIndex] = originalMiddleware;
-      }
-        
-      // Assertions
-      expect(response.statusCode).toBe(404);
-      expect(response.body).toHaveProperty('message', 'Usuario no encontrado');
+
+      expect(response.statusCode).toBe(200);
+      expect(response.body).toHaveProperty('status', 'success');
+      expect(response.body).toHaveProperty('data');
+      expect(response.body.data).toHaveProperty('usuario');
+      expect(response.body.data).toHaveProperty('settings', mockSettings);
+      expect(db.UserSettings.findOne).toHaveBeenCalledWith({ where: { userId: 1 } });
     });
   });
 });

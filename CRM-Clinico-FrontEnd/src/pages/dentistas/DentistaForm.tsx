@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import type { ChangeEvent, FormEvent } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import {
@@ -16,17 +16,8 @@ import {
   Alert,
   Divider,
   Avatar,
-  IconButton,
   Chip,
   Autocomplete,
-  Table,
-  TableBody,
-  TableCell,
-  TableContainer,
-  TableHead,
-  TableRow,
-  Stack,
-  Switch,
   FormControlLabel,
   Radio,
   RadioGroup,
@@ -34,20 +25,15 @@ import {
 } from '@mui/material';
 import {
   Save as SaveIcon,
-  ArrowBack as ArrowBackIcon,
-  PhotoCamera as PhotoCameraIcon,
-  Delete as DeleteIcon,
-  Add as AddIcon
+  ArrowBack as ArrowBackIcon
 } from '@mui/icons-material';
 import dentistaService from '../../services/dentistaService';
-import type { Dentista, DentistaCreacionDatos } from '../../services/dentistaService';
 import { usuarioService } from '../../services/usuarioService';
 import type { Usuario } from '../../services/usuarioService';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
-import config from '../../config';
 import authService, { AuthError } from '../../services/authService';
 
 interface DentistaFormFields {
@@ -88,18 +74,6 @@ interface HorarioItem {
   inicio: string;
   fin: string;
   dias: number[];
-}
-
-interface HorarioBD {
-  [key: string]: Array<{ inicio: string; fin: string }>;
-}
-
-interface UserResponse {
-  status?: string;
-  data: {
-    usuario?: Usuario;
-    usuarios?: Usuario[];
-  };
 }
 
 interface ApiError {
@@ -245,7 +219,9 @@ const DentistaForm = () => {
   const [horarios, setHorarios] = useState<HorarioItem[]>([
     { inicio: '09:00', fin: '14:00', dias: [1, 2, 3, 4, 5] }
   ]);
-  const [isCreatingNewUser, setIsCreatingNewUser] = useState(false);  const [nuevoUsuario, setNuevoUsuario] = useState<NuevoUsuarioFields>({
+  const [isCreatingNewUser, setIsCreatingNewUser] = useState(false);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const [nuevoUsuario, setNuevoUsuario] = useState<NuevoUsuarioFields>({
     nombre: '',
     email: '',
     telefono: '',
@@ -265,6 +241,15 @@ const DentistaForm = () => {
     añosExperiencia: '',
     biografia: ''
   });
+
+  // Cleanup timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   // Cargar usuarios disponibles (que no sean ya dentistas)
   useEffect(() => {
@@ -561,8 +546,7 @@ const DentistaForm = () => {
       }      const horarioTrabajoBD = convertirHorarioFrontendaBD(horarios);
       
       // Ensure data types are correct before sending to the backend
-      const dentistaData = {
-        userId: userId ? String(userId) : '', // Ensure userId is a string
+      const dentistaData: any = {
         especialidad: formData.especialidad?.trim() || "",
         horarioTrabajo: horarioTrabajoBD,
         status: formData.status || "activo",
@@ -571,6 +555,11 @@ const DentistaForm = () => {
         añosExperiencia: formData.añosExperiencia ? Number(formData.añosExperiencia) : undefined,
         biografia: formData.biografia?.trim() || ""
       };
+
+      // Only include userId when creating a new dentista
+      if (!isEditMode) {
+        dentistaData.userId = userId ? String(userId) : ''; // Ensure userId is a string
+      }
 
       if (isEditMode && id) {
         await dentistaService.actualizarDentista(id, dentistaData);
@@ -581,7 +570,7 @@ const DentistaForm = () => {
       }
 
       setSuccess(true);
-      setTimeout(() => {
+      timeoutRef.current = setTimeout(() => {
         navigate('/dentistas');
       }, 1500);
     } catch (error) {
@@ -589,30 +578,38 @@ const DentistaForm = () => {
       const apiError = error as ApiError;
       
       // Handle different types of errors
-      if (apiError.response?.status === 422 && apiError.response.data?.errors) {
-        // Format validation errors
-        console.log('Validation errors:', apiError.response.data.errors);
-        
-        // Process errors and set form field errors
-        const validationErrors: FormErrors = {};
-        apiError.response.data.errors.forEach((err: any) => {
-          const fieldPath = err.campo.split('.');
-          const fieldName = fieldPath[fieldPath.length - 1] as keyof FormErrors;
+      if (apiError.response?.status === 422) {
+        // Handle validation errors - can be array or string message
+        if (apiError.response.data?.errors && Array.isArray(apiError.response.data.errors)) {
+          // Format validation errors
+          console.log('Validation errors:', apiError.response.data.errors);
           
-          if (fieldName === 'horarioTrabajo') {
-            validationErrors.horarioTrabajo = err.mensaje;
-          } else if (fieldName in formData) {
-            validationErrors[fieldName as keyof FormErrors] = err.mensaje;
-          }
-        });
-        
-        setFormErrors(validationErrors);
-        
-        // Also set a general error message
-        const errorMessages = apiError.response.data.errors
-          .map((err: any) => `${err.mensaje} (${err.campo})`)
-          .join('\n');
-        setError(`Error de validación:\n${errorMessages}`);
+          // Process errors and set form field errors
+          const validationErrors: FormErrors = {};
+          apiError.response.data.errors.forEach((err: any) => {
+            const fieldPath = err.campo.split('.');
+            const fieldName = fieldPath[fieldPath.length - 1] as keyof FormErrors;
+            
+            if (fieldName === 'horarioTrabajo') {
+              validationErrors.horarioTrabajo = err.mensaje;
+            } else if (fieldName in formData) {
+              validationErrors[fieldName as keyof FormErrors] = err.mensaje;
+            }
+          });
+          
+          setFormErrors(validationErrors);
+          
+          // Also set a general error message
+          const errorMessages = apiError.response.data.errors
+            .map((err: any) => `${err.mensaje} (${err.campo})`)
+            .join('\n');
+          setError(`Error de validación:\n${errorMessages}`);
+        } else if (apiError.response.data?.message) {
+          // Simple validation error message
+          setError(apiError.response.data.message);
+        } else {
+          setError('Error de validación');
+        }
       } else if (apiError.response?.data?.message) {
         setError(apiError.response.data.message);
       } else if (error instanceof AuthError) {
@@ -660,19 +657,6 @@ const DentistaForm = () => {
     });
   };
 
-  const agregarHorario = () => {
-    setHorarios([...horarios, { inicio: '09:00', fin: '18:00', dias: [] }]);
-  };
-
-  const eliminarHorario = (index: number) => {
-    const nuevosHorarios = horarios.filter((_, i) => i !== index);
-    setHorarios(nuevosHorarios);
-    setFormData({
-      ...formData,
-      horarioTrabajo: JSON.stringify(nuevosHorarios, null, 2)
-    });
-  };
-
   if (loadingDentista) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', p: 5 }}>
@@ -696,7 +680,7 @@ const DentistaForm = () => {
       </Typography>
 
       {error && (
-        <Alert severity="error" sx={{ mb: 3 }}>
+        <Alert severity="error" sx={{ mb: 3, whiteSpace: 'pre-wrap' }}>
           {error}
         </Alert>
       )}
@@ -744,6 +728,7 @@ const DentistaForm = () => {
                     getOptionLabel={(option) => option ? `${option.nombre} (${option.email})` : ''}
                     isOptionEqualToValue={(option, value) => option?.id === value?.id}
                     loading={loadingUsers}
+                    disablePortal={true}
                     renderOption={(props, option) => (
                       <li {...props} key={`user-${option.id}`}>
                         {`${option.nombre} (${option.email})`}
@@ -914,6 +899,7 @@ const DentistaForm = () => {
                     value={formData.status}
                     onChange={handleChange as any}
                     label="Estado"
+                    MenuProps={{ disablePortal: true }}
                   >
                     <MenuItem value="activo">Activo</MenuItem>
                     <MenuItem value="inactivo">Inactivo</MenuItem>
@@ -936,10 +922,10 @@ const DentistaForm = () => {
               <Divider sx={{ mb: 2 }} />
             </Box>
 
-            {horarios.map((horario, index) => (
-              <Box key={index} sx={{ mb: 2 }}>
-                <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
-                  <LocalizationProvider dateAdapter={AdapterDayjs}>
+            <LocalizationProvider dateAdapter={AdapterDayjs}>
+              {horarios.map((horario, index) => (
+                <Box key={`horario-${index}-${horario.inicio}-${horario.fin}`} sx={{ mb: 2 }}>
+                  <Box sx={{ display: 'flex', gap: 2, alignItems: 'center', mb: 1 }}>
                     <TimePicker
                       label="Hora de inicio"
                       value={dayjs(`2000-01-01T${horario.inicio}`)}
@@ -948,6 +934,9 @@ const DentistaForm = () => {
                         textField: {
                           fullWidth: true,
                           required: true
+                        },
+                        popper: {
+                          disablePortal: true
                         }
                       }}
                     />
@@ -959,25 +948,28 @@ const DentistaForm = () => {
                         textField: {
                           fullWidth: true,
                           required: true
+                        },
+                        popper: {
+                          disablePortal: true
                         }
                       }}
                     />
-                  </LocalizationProvider>
+                  </Box>
+                  <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
+                    {diasSemana.map((dia) => (
+                      <Chip
+                        key={dia.id}
+                        label={dia.nombre}
+                        onClick={() => handleToggleDia(index, dia.id)}
+                        color={horario.dias.includes(dia.id) ? "primary" : "default"}
+                        variant={horario.dias.includes(dia.id) ? "filled" : "outlined"}
+                        size="small"
+                      />
+                    ))}
+                  </Box>
                 </Box>
-                <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap' }}>
-                  {diasSemana.map((dia) => (
-                    <Chip
-                      key={dia.id}
-                      label={dia.nombre}
-                      onClick={() => handleToggleDia(index, dia.id)}
-                      color={horario.dias.includes(dia.id) ? "primary" : "default"}
-                      variant={horario.dias.includes(dia.id) ? "filled" : "outlined"}
-                      size="small"
-                    />
-                  ))}
-                </Box>
-              </Box>
-            ))}
+              ))}
+            </LocalizationProvider>
 
             {/* Botones de acción */}
             <Box sx={{ display: 'flex', justifyContent: 'flex-end', gap: 2, mt: 2 }}>

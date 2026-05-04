@@ -120,23 +120,27 @@ app.all('*', (req, res, next) => {
 // Middleware de manejo de errores
 app.use(errorHandler);
 
-const server = app.listen(PORT, async () => {
-  logger.info(`Servidor corriendo en el puerto ${PORT} en modo ${config.environment}`);
-  
-  try {
-    // Verificar conexión a la base de datos
-    await sequelize.authenticate();
-    logger.info('Conexión a la base de datos establecida correctamente');
-    
-    // Sincronizar modelos en desarrollo (solo para desarrollo)
-    if (config.environment === 'development') {
-      await sequelize.sync({ alter: false });
-      logger.info('Base de datos lista');
+let server;
+
+if (process.env.NODE_ENV !== 'test') {
+  server = app.listen(PORT, async () => {
+    logger.info(`Servidor corriendo en el puerto ${PORT} en modo ${config.environment}`);
+
+    try {
+      // Verificar conexión a la base de datos
+      await sequelize.authenticate();
+      logger.info('Conexión a la base de datos establecida correctamente');
+
+      // Sincronizar modelos en desarrollo (solo para desarrollo)
+      if (config.environment === 'development') {
+        await sequelize.sync({ alter: false });
+        logger.info('Base de datos lista');
+      }
+    } catch (error) {
+      logger.error(`Error al conectar con la base de datos: ${error.message}`);
     }
-  } catch (error) {
-    logger.error(`Error al conectar con la base de datos: ${error.message}`);
-  }
-});
+  });
+}
 
 // Manejo de excepciones no capturadas
 process.on('uncaughtException', (err) => {
@@ -149,10 +153,14 @@ process.on('uncaughtException', (err) => {
 process.on('unhandledRejection', (err) => {
   logger.error('¡PROMESA RECHAZADA NO CAPTURADA! Cerrando servidor...');
   logger.error(err.name, err.message);
-  console.error('ERROR STACK:', err.stack); // <--- Agrega esta línea
-  server.close(() => {
-    process.exit(1);
-  });
+  console.error('ERROR STACK:', err.stack);
+  if (server) {
+    server.close(() => {
+      process.exit(1);
+    });
+    return;
+  }
+  process.exit(1);
 });
 
 module.exports = app;
