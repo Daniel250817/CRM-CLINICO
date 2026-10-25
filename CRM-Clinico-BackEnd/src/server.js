@@ -25,6 +25,7 @@ const dashboardRoutes = require('./routes/dashboardRoutes');
 const seguimientoRoutes = require('./routes/seguimientoRoutes');
 const userSettingsRoutes = require('./routes/userSettingsRoutes');
 const facturaRoutes = require('./routes/facturaRoutes');
+const documentoRoutes = require('./routes/documentoRoutes');
 
 // Inicializar la aplicación
 const app = express();
@@ -76,6 +77,7 @@ app.use('/api/dashboard', dashboardRoutes);
 app.use('/api/seguimiento', seguimientoRoutes);
 app.use('/api/settings', userSettingsRoutes);
 app.use('/api/facturas', facturaRoutes);
+app.use('/api/documentos', documentoRoutes);
 
 // Servir archivos estáticos con las cabeceras correctas
 app.use('/uploads', (req, res, next) => {

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link as RouterLink } from 'react-router-dom';
 import { 
   Box, 
   Button, 
@@ -87,8 +88,10 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
       } catch (error: any) {
         console.error('Error al iniciar sesión:', error);
         
-        // Mostrar un mensaje de error específico o genérico
-        if (error.response?.data?.message) {
+        // Mostrar un mensaje de error específico (campo message) o el mensaje de la respuesta, o genérico
+        if (error?.message) {
+          setLoginError(error.message);
+        } else if (error.response?.data?.message) {
           setLoginError(error.response.data.message);
         } else {
           setLoginError('Error al iniciar sesión. Verifica tus credenciales e inténtalo de nuevo.');
@@ -356,7 +359,9 @@ const Login: React.FC<LoginProps> = ({ onLogin }) => {
               <Typography 
                 variant="body2" 
                 color="primary"
-                sx={{ cursor: 'pointer', fontWeight: 'medium' }}
+                component={RouterLink}
+                to="/forgot-password"
+                sx={{ cursor: 'pointer', fontWeight: 'medium', textDecoration: 'none' }}
               >
                 ¿Olvidó su contraseña?
               </Typography>

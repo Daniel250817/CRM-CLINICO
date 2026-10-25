@@ -33,6 +33,11 @@ const authSchemas = {
     email: z.string().email('Email inválido')
   }),
 
+  // Esquema para verificar OTP de restablecimiento
+  verificarTokenResetPassword: z.object({
+    token: z.string().regex(/^\d{6}$/, 'El token debe tener 6 dígitos numéricos')
+  }),
+
   // Esquema para cambio de contraseña
   restablecerPassword: z.object({
     password: z.string().min(6, 'La contraseña debe tener al menos 6 caracteres'),

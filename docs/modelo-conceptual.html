@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Modelo conceptual ER — CRM Clínico</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Arial, Helvetica, sans-serif;
+      color: #111;
+      background: #fff;
+    }
+    header {
+      border-bottom: 2px solid #000;
+      padding: 16px 24px;
+    }
+    h1 { margin: 0 0 4px; font-size: 22px; }
+    header p { margin: 0; font-size: 13px; }
+    h2 {
+      margin: 24px 0 10px;
+      font-size: 18px;
+      border-bottom: 1px solid #000;
+      padding-bottom: 4px;
+    }
+    .wrap { padding: 16px 20px 40px; }
+    .board {
+      width: 100%;
+      border: 1px solid #000;
+      background: #fff;
+    }
+    svg { display: block; width: 100%; height: auto; }
+    .attrs {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 12px;
+    }
+    .entity {
+      border: 1.5px solid #000;
+    }
+    .entity h3 {
+      margin: 0;
+      padding: 6px 8px;
+      font-size: 13px;
+      text-align: center;
+      border-bottom: 1.5px solid #000;
+      background: #eee;
+    }
+    .entity ul {
+      margin: 0;
+      padding: 6px 8px 8px 26px;
+      font-size: 12px;
+    }
+    .entity li.pk { font-weight: 700; text-decoration: underline; }
+    .leyenda { font-size: 13px; margin-top: 8px; }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 12px;
+      margin: 0 0 22px;
+    }
+    caption {
+      caption-side: top;
+      text-align: left;
+      font-weight: 700;
+      font-size: 15px;
+      padding: 0 0 6px;
+    }
+    th, td {
+      border: 1px solid #000;
+      padding: 6px 8px;
+      vertical-align: top;
+    }
+    th { background: #fff; text-align: left; font-weight: 700; }
+    table th:nth-child(1), table td:nth-child(1) { width: 28%; }
+    .entidad-desc {
+      font-size: 13px;
+      margin: 0 0 8px;
+    }
+    h3.entidad {
+      margin: 22px 0 4px;
+      font-size: 15px;
+    }
+    td.clave { font-weight: 700; white-space: nowrap; }
+    @media (max-width: 900px) {
+      .attrs { grid-template-columns: repeat(2, 1fr); }
+    }
+    @media print {
+      h2 { break-after: avoid; }
+      table { break-inside: avoid; }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Modelo conceptual ER — CRM Clínico</h1>
+    <p>Notación Chen: rectángulo = entidad, rombo = relación. Solo se modela el negocio: sin claves foráneas, tipos de dato ni campos de implementación.</p>
+  </header>
+
+  <div class="wrap">
+    <h2>Diagrama entidad-relación</h2>
+    <div class="board">
+      <svg id="er" viewBox="0 0 1640 1060" xmlns="http://www.w3.org/2000/svg" aria-label="Modelo entidad-relación del CRM Clínico"></svg>
+    </div>
+    <p class="leyenda">
+      1 = uno &nbsp;|&nbsp; 0..1 = uno o ninguno &nbsp;|&nbsp; N = muchos.
+      Los atributos van en el diccionario, no en el diagrama.
+    </p>
+
+    <h2>Diccionario de datos</h2>
+    <p class="leyenda">Cada entidad muestra su nombre, una descripción y un cuadro con atributo y uso. Sin tipo de dato.</p>
+
+    <h3 class="entidad">USUARIO</h3>
+    <p class="entidad-desc">Persona que accede al sistema según su rol.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>código</td><td>Identifica a cada usuario.</td></tr>
+        <tr><td>nombre</td><td>Nombre de la persona.</td></tr>
+        <tr><td>correo</td><td>Medio para iniciar sesión y recibir avisos.</td></tr>
+        <tr><td>contraseña</td><td>Clave con la que ingresa al sistema.</td></tr>
+        <tr><td>rol</td><td>Indica si es administrador, dentista o cliente.</td></tr>
+        <tr><td>teléfono</td><td>Número de contacto.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">CLIENTE</h3>
+    <p class="entidad-desc">Paciente de la clínica. Se atiende, agenda citas y tiene expediente.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>código</td><td>Identifica a cada paciente.</td></tr>
+        <tr><td>nombre</td><td>Nombre del paciente.</td></tr>
+        <tr><td>apellidos</td><td>Apellidos del paciente.</td></tr>
+        <tr><td>correo</td><td>Correo de contacto.</td></tr>
+        <tr><td>teléfono</td><td>Número telefónico.</td></tr>
+        <tr><td>fecha de nacimiento</td><td>Fecha en que nació.</td></tr>
+        <tr><td>género</td><td>Sexo o identidad del paciente.</td></tr>
+        <tr><td>dirección</td><td>Lugar de residencia.</td></tr>
+        <tr><td>ciudad</td><td>Municipio o ciudad.</td></tr>
+        <tr><td>ocupación</td><td>Actividad laboral.</td></tr>
+        <tr><td>estado civil</td><td>Situación civil.</td></tr>
+        <tr><td>historial médico</td><td>Antecedentes clínicos a considerar.</td></tr>
+        <tr><td>alergias</td><td>Alergias que afectan la atención.</td></tr>
+        <tr><td>contacto de emergencia</td><td>Persona a avisar en una urgencia.</td></tr>
+        <tr><td>fecha de registro</td><td>Fecha de alta en la clínica.</td></tr>
+        <tr><td>notas</td><td>Observaciones sobre el paciente.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">DENTISTA</h3>
+    <p class="entidad-desc">Profesional que atiende citas y dirige tratamientos.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>código</td><td>Identifica a cada dentista.</td></tr>
+        <tr><td>especialidad</td><td>Área clínica en la que se desempeña.</td></tr>
+        <tr><td>título</td><td>Grado académico.</td></tr>
+        <tr><td>número colegiado</td><td>Código de colegiación profesional.</td></tr>
+        <tr><td>años de experiencia</td><td>Tiempo de ejercicio.</td></tr>
+        <tr><td>horario de trabajo</td><td>Días y horas en que atiende.</td></tr>
+        <tr><td>estado</td><td>Disponibilidad (activo, inactivo o vacaciones).</td></tr>
+        <tr><td>biografía</td><td>Reseña profesional.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">CONFIGURACIÓN</h3>
+    <p class="entidad-desc">Preferencias de uso de cada usuario.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>tema</td><td>Apariencia que prefiere ver en el sistema.</td></tr>
+        <tr><td>idioma</td><td>Idioma en que se presenta el sistema.</td></tr>
+        <tr><td>aviso por correo</td><td>Si desea recibir avisos por correo.</td></tr>
+        <tr><td>aviso en aplicación</td><td>Si desea ver avisos dentro del sistema.</td></tr>
+        <tr><td>aviso por SMS</td><td>Si desea recibir avisos por mensaje de texto.</td></tr>
+        <tr><td>foto de perfil</td><td>Imagen con la que se identifica el usuario.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">SERVICIO</h3>
+    <p class="entidad-desc">Prestación dental que la clínica ofrece y se agenda en una cita.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>código</td><td>Identifica cada servicio del catálogo.</td></tr>
+        <tr><td>nombre</td><td>Nombre del servicio.</td></tr>
+        <tr><td>descripción</td><td>Qué incluye la prestación.</td></tr>
+        <tr><td>precio</td><td>Costo del servicio.</td></tr>
+        <tr><td>duración</td><td>Tiempo estimado de la atención.</td></tr>
+        <tr><td>categoría</td><td>Grupo al que pertenece (higiene, estética, etc.).</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">CITA</h3>
+    <p class="entidad-desc">Atención programada entre un paciente, un dentista y un servicio.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>código</td><td>Identifica cada cita.</td></tr>
+        <tr><td>fecha</td><td>Día de la atención.</td></tr>
+        <tr><td>hora</td><td>Hora de la atención.</td></tr>
+        <tr><td>estado</td><td>Situación de la cita (pendiente, confirmada, completada o cancelada).</td></tr>
+        <tr><td>duración</td><td>Tiempo reservado para atender.</td></tr>
+        <tr><td>notas</td><td>Observaciones de la cita.</td></tr>
+        <tr><td>motivo de cancelación</td><td>Razón si la cita no se realiza.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">FACTURA</h3>
+    <p class="entidad-desc">Cobro generado por la atención recibida.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>número</td><td>Código correlativo de la factura.</td></tr>
+        <tr><td>concepto</td><td>Motivo del cobro.</td></tr>
+        <tr><td>detalle</td><td>Servicios incluidos en el cobro.</td></tr>
+        <tr><td>descuento</td><td>Monto rebajado.</td></tr>
+        <tr><td>impuestos</td><td>Cargos fiscales del cobro.</td></tr>
+        <tr><td>total</td><td>Monto final a pagar.</td></tr>
+        <tr><td>estado de pago</td><td>Si está pendiente, pagada, vencida o cancelada.</td></tr>
+        <tr><td>método de pago</td><td>Forma en que se paga.</td></tr>
+        <tr><td>fecha de vencimiento</td><td>Fecha límite para pagar.</td></tr>
+        <tr><td>fecha de pago</td><td>Fecha en que se pagó.</td></tr>
+        <tr><td>notas</td><td>Observaciones de facturación.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">TRATAMIENTO</h3>
+    <p class="entidad-desc">Plan de atención que un paciente sigue con un dentista.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>código</td><td>Identifica el plan de tratamiento.</td></tr>
+        <tr><td>nombre</td><td>Nombre del tratamiento.</td></tr>
+        <tr><td>descripción</td><td>Detalle clínico del plan.</td></tr>
+        <tr><td>fecha de inicio</td><td>Cuándo comienza el plan.</td></tr>
+        <tr><td>fecha de fin</td><td>Cuándo termina el plan.</td></tr>
+        <tr><td>estado</td><td>Si está activo, completado o cancelado.</td></tr>
+        <tr><td>progreso</td><td>Avance del plan.</td></tr>
+        <tr><td>sesiones totales</td><td>Sesiones previstas.</td></tr>
+        <tr><td>sesiones completadas</td><td>Sesiones ya realizadas.</td></tr>
+        <tr><td>notas</td><td>Observaciones del tratamiento.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">DOCUMENTO</h3>
+    <p class="entidad-desc">Archivo clínico que forma parte del expediente del paciente.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>nombre</td><td>Nombre del documento.</td></tr>
+        <tr><td>tipo</td><td>Clase de documento (receta, radiografía, consentimiento, etc.).</td></tr>
+        <tr><td>fecha</td><td>Fecha del documento.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">TAREA</h3>
+    <p class="entidad-desc">Actividad interna que un usuario crea y otro atiende.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>código</td><td>Identifica la tarea.</td></tr>
+        <tr><td>título</td><td>Nombre de la actividad.</td></tr>
+        <tr><td>descripción</td><td>Qué debe realizarse.</td></tr>
+        <tr><td>fecha límite</td><td>Fecha máxima para terminarla.</td></tr>
+        <tr><td>estado</td><td>Avance (pendiente, en progreso, completada o cancelada).</td></tr>
+        <tr><td>prioridad</td><td>Urgencia de la tarea.</td></tr>
+        <tr><td>fecha de cierre</td><td>Fecha en que se completó.</td></tr>
+      </tbody>
+    </table>
+
+    <h3 class="entidad">NOTIFICACIÓN</h3>
+    <p class="entidad-desc">Aviso que recibe un usuario sobre hechos del sistema.</p>
+    <table>
+      <thead><tr><th>Atributo</th><th>Descripción</th></tr></thead>
+      <tbody>
+        <tr><td>mensaje</td><td>Texto del aviso.</td></tr>
+        <tr><td>fecha</td><td>Momento en que se generó.</td></tr>
+        <tr><td>estado de lectura</td><td>Si el usuario ya vio el aviso.</td></tr>
+        <tr><td>tipo</td><td>Clase de aviso (información, alerta o recordatorio).</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <script>
+    const EW = 190, EH = 50;
+    const entities = {
+      CONFIG:     { x: 40,   y: 24,  name: 'CONFIGURACIÓN' },
+      USUARIO:    { x: 695,  y: 24,  name: 'USUARIO' },
+      NOTIF:      { x: 1350, y: 24,  name: 'NOTIFICACIÓN' },
+      TAREA:      { x: 1350, y: 155, name: 'TAREA' },
+      CLIENTE:    { x: 40,   y: 300, name: 'CLIENTE' },
+      DENTISTA:   { x: 1350, y: 300, name: 'DENTISTA' },
+      DOC:        { x: 40,   y: 520, name: 'DOCUMENTO' },
+      CITA:       { x: 695,  y: 520, name: 'CITA' },
+      FACTURA:    { x: 1350, y: 520, name: 'FACTURA' },
+      TRAT:       { x: 40,   y: 760, name: 'TRATAMIENTO' },
+      SERV:       { x: 695,  y: 760, name: 'SERVICIO' }
+    };
+
+    const rels = [
+      { a: 'CONFIG',   b: 'USUARIO',  name: 'tiene',   ca: '1',    cb: '1',    dx: 462,  dy: 49 },
+      { a: 'USUARIO',  b: 'NOTIF',    name: 'recibe',  ca: '1',    cb: 'N',    dx: 1117, dy: 49 },
+      { a: 'USUARIO',  b: 'TAREA',    name: 'crea',    ca: '1',    cb: 'N',    dx: 1110, dy: 108 },
+      { a: 'USUARIO',  b: 'TAREA',    name: 'atiende', ca: '1',    cb: 'N',    dx: 1350, dy: 230 },
+      { a: 'USUARIO',  b: 'CLIENTE',  name: 'es',      ca: '1',    cb: '0..1', dx: 300,  dy: 190 },
+      { a: 'USUARIO',  b: 'DENTISTA', name: 'es',      ca: '1',    cb: '0..1', dx: 1185, dy: 270 },
+      { a: 'CLIENTE',  b: 'CITA',     name: 'agenda',  ca: '1',    cb: 'N',    dx: 400,  dy: 430 },
+      { a: 'DENTISTA', b: 'CITA',     name: 'atiende', ca: '1',    cb: 'N',    dx: 1185, dy: 430 },
+      { a: 'CLIENTE',  b: 'DOC',      name: 'tiene',   ca: '1',    cb: 'N',    dx: 135,  dy: 435 },
+      { a: 'CLIENTE',  b: 'TRAT',     name: 'sigue',   ca: '1',    cb: 'N',    dx: 240,  dy: 640 },
+      { a: 'DENTISTA', b: 'TRAT',     name: 'dirige',  ca: '1',    cb: 'N',    dx: 500,  dy: 980,
+        viaA: [{ x: 1595, y: 325 }, { x: 1595, y: 980 }], viaB: [] },
+      { a: 'SERV',     b: 'CITA',     name: 'presta',  ca: '1',    cb: 'N',    dx: 790,  dy: 665 },
+      { a: 'CITA',     b: 'FACTURA',  name: 'genera',  ca: '1',    cb: 'N',    dx: 1117, dy: 545 },
+      { a: 'CLIENTE',  b: 'FACTURA',  name: 'paga',    ca: '1',    cb: 'N',    dx: 790,  dy: 390 },
+      { a: 'DENTISTA', b: 'FACTURA',  name: 'asocia',  ca: '1',    cb: 'N',    dx: 1445, dy: 435 }
+    ];
+
+    function center(e) {
+      return { x: e.x + EW / 2, y: e.y + EH / 2 };
+    }
+
+    function borderPoint(e, tx, ty) {
+      const c = center(e);
+      const dx = tx - c.x;
+      const dy = ty - c.y;
+      if (dx === 0 && dy === 0) return c;
+      const hx = EW / 2;
+      const hy = EH / 2;
+      const sx = dx === 0 ? Infinity : hx / Math.abs(dx);
+      const sy = dy === 0 ? Infinity : hy / Math.abs(dy);
+      const t = Math.min(sx, sy);
+      return { x: c.x + dx * t, y: c.y + dy * t };
+    }
+
+    function along(p1, p2, dist) {
+      const dx = p2.x - p1.x;
+      const dy = p2.y - p1.y;
+      const len = Math.hypot(dx, dy) || 1;
+      return { x: p1.x + dx / len * dist, y: p1.y + dy / len * dist };
+    }
+
+    function el(name, attrs, text) {
+      const n = document.createElementNS('http://www.w3.org/2000/svg', name);
+      Object.entries(attrs).forEach(([k, v]) => n.setAttribute(k, v));
+      if (text != null) n.textContent = text;
+      return n;
+    }
+
+    const svg = document.getElementById('er');
+    const gLines = el('g', {});
+    const gDiamonds = el('g', {});
+    const gBoxes = el('g', {});
+    const gCards = el('g', {});
+    svg.append(gLines, gDiamonds, gBoxes, gCards);
+
+    function pathTo(from, via, dest) {
+      const pts = [from, ...(via || []), dest];
+      return pts.map((p, i) => (i === 0 ? `M ${p.x} ${p.y}` : `L ${p.x} ${p.y}`)).join(' ');
+    }
+
+    function cardText(x, y, value) {
+      const t = el('text', {
+        x, y: y + 4,
+        'text-anchor': 'middle',
+        'font-family': 'Arial',
+        'font-size': '12',
+        'font-weight': '700',
+        fill: '#000',
+        stroke: '#fff',
+        'stroke-width': '4',
+        'paint-order': 'stroke'
+      }, value);
+      return t;
+    }
+
+    rels.forEach((r) => {
+      const A = entities[r.a];
+      const B = entities[r.b];
+      const D = { x: r.dx, y: r.dy };
+      const firstA = (r.viaA && r.viaA[0]) || D;
+      const firstB = (r.viaB && r.viaB[0]) || D;
+      const pa = borderPoint(A, firstA.x, firstA.y);
+      const pb = borderPoint(B, firstB.x, firstB.y);
+
+      gLines.append(
+        el('path', { d: pathTo(pa, r.viaA, D), fill: 'none', stroke: '#000', 'stroke-width': '1.4' }),
+        el('path', { d: pathTo(pb, r.viaB, D), fill: 'none', stroke: '#000', 'stroke-width': '1.4' })
+      );
+
+      const dw = Math.max(56, r.name.length * 7.2 + 20);
+      const dh = 36;
+      const pts = [
+        D.x, D.y - dh / 2,
+        D.x + dw / 2, D.y,
+        D.x, D.y + dh / 2,
+        D.x - dw / 2, D.y
+      ].join(' ');
+      gDiamonds.append(
+        el('polygon', { points: pts, fill: '#fff', stroke: '#000', 'stroke-width': '1.6' }),
+        el('text', {
+          x: D.x, y: D.y + 4,
+          'text-anchor': 'middle',
+          'font-family': 'Arial',
+          'font-size': '11',
+          'font-weight': '700'
+        }, r.name)
+      );
+
+      const nextA = (r.viaA && r.viaA[0]) || D;
+      const nextB = (r.viaB && r.viaB[0]) || D;
+      const ca = along(pa, nextA, 28);
+      const cb = along(pb, nextB, 28);
+      gCards.append(cardText(ca.x, ca.y, r.ca), cardText(cb.x, cb.y, r.cb));
+    });
+
+    Object.values(entities).forEach((e) => {
+      gBoxes.append(
+        el('rect', {
+          x: e.x, y: e.y, width: EW, height: EH,
+          fill: '#fff', stroke: '#000', 'stroke-width': '1.8'
+        }),
+        el('text', {
+          x: e.x + EW / 2, y: e.y + 32,
+          'text-anchor': 'middle',
+          'font-family': 'Arial',
+          'font-size': '14',
+          'font-weight': '700'
+        }, e.name)
+      );
+    });
+  </script>
+</body>
+</html>

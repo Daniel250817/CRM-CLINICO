@@ -36,7 +36,7 @@ interface TopBarProps {
 
 const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
   const navigate = useNavigate();
-  const { user, logout } = useAuth();
+  const { user, logout, settings } = useAuth();
   const { addNotification } = useNotification();
   const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
   const [notificationsAnchorEl, setNotificationsAnchorEl] = useState<null | HTMLElement>(null);
@@ -196,14 +196,25 @@ const TopBar: React.FC<TopBarProps> = ({ onDrawerToggle }) => {
     const now = new Date();
     const notificationDate = new Date(date);
     const diffInMinutes = Math.floor((now.getTime() - notificationDate.getTime()) / (1000 * 60));
-    
-    if (diffInMinutes < 1) return 'Ahora';
-    if (diffInMinutes < 60) return `Hace ${diffInMinutes} minutos`;
-    if (diffInMinutes < 1440) {
-      const hours = Math.floor(diffInMinutes / 60);
-      return `Hace ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+    const lang = settings?.language || navigator.language || 'es-ES';
+
+    if (lang.startsWith('en')) {
+      if (diffInMinutes < 1) return 'Now';
+      if (diffInMinutes < 60) return `${diffInMinutes} minutes ago`;
+      if (diffInMinutes < 1440) {
+        const hours = Math.floor(diffInMinutes / 60);
+        return `${hours} ${hours === 1 ? 'hour' : 'hours'} ago`;
+      }
+      return notificationDate.toLocaleDateString('en-GB');
+    } else {
+      if (diffInMinutes < 1) return 'Ahora';
+      if (diffInMinutes < 60) return `Hace ${diffInMinutes} minutos`;
+      if (diffInMinutes < 1440) {
+        const hours = Math.floor(diffInMinutes / 60);
+        return `Hace ${hours} ${hours === 1 ? 'hora' : 'horas'}`;
+      }
+      return notificationDate.toLocaleDateString('es-ES');
     }
-    return notificationDate.toLocaleDateString('es-ES');
   };
 
   const renderMenu = (

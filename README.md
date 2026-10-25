@@ -79,10 +79,6 @@ npm run build
 - Backend: [`CRM-Clinico-BackEnd/README.md`](CRM-Clinico-BackEnd/README.md)
 - Frontend: [`CRM-Clinico-FrontEnd/README.md`](CRM-Clinico-FrontEnd/README.md)
 
-## Manual Técnico
-
-Sí cumple. El proyecto cuenta con documentación técnica básica para instalación, ejecución, pruebas y estructura general, suficiente para orientar el uso y mantenimiento del sistema.
-
 ## Variables de Entorno
 
 El backend requiere variables para la base de datos y JWT. Revisa `CRM-Clinico-BackEnd/config/` y los archivos de configuración del proyecto para los valores esperados.

@@ -91,15 +91,38 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
   const login = async (email: string, password: string, rememberMe?: boolean) => {
     try {
+      // Call login to obtain tokens
       const response = await authService.login({ email, password, rememberMe });
-      setUser(response.user);
-      
-      // Cargar settings después del login
+
+      // After tokens are stored, request the verified user info from the server
+      // This endpoint returns the canonical user record (including `estado` and settings)
+      let verifiedUser = null;
       try {
-        const userSettings = await authService.fetchUserSettings();
-        setSettings(userSettings);
-      } catch (error) {
-        console.error('Error al cargar settings después del login:', error);
+        verifiedUser = await authService.getCurrentUser();
+      } catch (err) {
+        console.error('Error al verificar usuario después del login:', err);
+      }
+
+      // If the verified user reports estado === 'inactivo', block access
+      if (verifiedUser && (verifiedUser as any).estado === 'inactivo') {
+        // Clean up tokens
+        authService.logout();
+        throw new AuthError('Usuario inactivo. Por favor contacta al administrador.', 'ACCOUNT_INACTIVE', 403);
+      }
+
+      // Use the verified user if available, otherwise fallback to response.user
+      setUser(verifiedUser || response.user);
+
+      // Load settings (try from verifiedUser first)
+      if (verifiedUser?.settings) {
+        setSettings(verifiedUser.settings);
+      } else {
+        try {
+          const userSettings = await authService.fetchUserSettings();
+          setSettings(userSettings);
+        } catch (error) {
+          console.error('Error al cargar settings después del login:', error);
+        }
       }
 
       setIsAuthenticated(true);

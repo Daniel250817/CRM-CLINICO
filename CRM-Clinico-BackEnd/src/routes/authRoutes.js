@@ -188,6 +188,33 @@ router.post('/forgot-password', validarDatos(authSchemas.olvidoPassword), authCo
 
 /**
  * @swagger
+ * /api/auth/verify-reset-token:
+ *   post:
+ *     summary: Verifica un OTP de restablecimiento
+ *     tags: [Autenticación]
+ *     description: Valida el código OTP enviado por correo antes de permitir cambiar la contraseña
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - token
+ *             properties:
+ *               token:
+ *                 type: string
+ *                 example: "123456"
+ *     responses:
+ *       200:
+ *         description: Token válido
+ *       401:
+ *         $ref: '#/components/responses/Unauthorized'
+ */
+router.post('/verify-reset-token', validarDatos(authSchemas.verificarTokenResetPassword), authController.verificarTokenRestablecimiento);
+
+/**
+ * @swagger
  * /api/auth/reset-password/{token}:
  *   post:
  *     summary: Restablece la contraseña

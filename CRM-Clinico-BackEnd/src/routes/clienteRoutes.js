@@ -9,6 +9,9 @@ const router = express.Router();
 // Todas las rutas requieren autenticación
 router.use(protegerRuta);
 
+const documentoController = require('../controllers/documentoController');
+const { uploadDocument, handleMulterError } = require('../middlewares/fileUpload');
+
 // Ruta para obtener todos los clientes (admin y dentistas)
 router.get('/', clienteController.obtenerTodosLosClientes);
 
@@ -26,5 +29,9 @@ router.patch('/:id', validarId, validarDatos(clienteSchemas.actualizarCliente), 
 
 // Ruta para obtener citas de un cliente específico
 router.get('/:id/citas', validarId, clienteController.obtenerCitasCliente);
+
+// Rutas para documentos del cliente
+router.get('/:id/documentos', validarId, documentoController.obtenerDocumentosCliente);
+router.post('/:id/documentos', validarId, uploadDocument.single('archivo'), handleMulterError, documentoController.subirDocumento);
 
 module.exports = router;

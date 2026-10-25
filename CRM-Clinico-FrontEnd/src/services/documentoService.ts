@@ -94,6 +94,36 @@ export const documentoService = {
       throw error;
     }
   }
+  ,
+  // Actualizar un documento (nombre y/o archivo)
+  actualizarDocumento: async (
+    documentoId: string,
+    file?: File | null,
+    nombre?: string,
+    config?: AxiosRequestConfig
+  ) => {
+    const formData = new FormData();
+    if (file) formData.append('archivo', file);
+    if (nombre) formData.append('nombre', nombre);
+
+    try {
+      const response = await api.patch<{ status: string; data: DocumentoAPI }>(
+        `/documentos/${documentoId}`,
+        formData,
+        {
+          ...config,
+          headers: {
+            ...config?.headers,
+            'Content-Type': 'multipart/form-data'
+          }
+        }
+      );
+      return response.data.data;
+    } catch (error) {
+      console.error('Error al actualizar documento:', error);
+      throw error;
+    }
+  }
 };
 
 export const tratamientoService = {

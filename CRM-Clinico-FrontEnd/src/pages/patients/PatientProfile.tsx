@@ -52,6 +52,7 @@ import {
   Description as DescriptionIcon,
   Download as DownloadIcon,
   Delete as DeleteIcon,
+  Visibility as VisibilityIcon,
   Cake as CakeIcon,
   Work as WorkIcon,
   Favorite as FavoriteIcon,
@@ -60,7 +61,8 @@ import {
   Assignment as AssignmentIcon
 } from '@mui/icons-material';
 import { clienteService, type Cliente, type TratamientoCliente } from '../../services/clienteService';
-import { obtenerPerfilCompletoCliente, type DocumentoAPI, type TratamientoAPI } from '../../services/documentoService';
+import { obtenerPerfilCompletoCliente, type DocumentoAPI, type TratamientoAPI, documentoService } from '../../services/documentoService';
+import { api } from '../../services/api';
 import { citaService, type Cita } from '../../services/citaService';
 import { useNotification } from '../../contexts/NotificationContext';
 
@@ -105,6 +107,13 @@ const PatientProfile = () => {
     tipo: "xray",
     archivo: null as File | null
   });
+  const [documentos, setDocumentos] = useState<DocumentoAPI[]>([]);
+  const [loadingDocumentos, setLoadingDocumentos] = useState(false);
+  const [errorDocumentos, setErrorDocumentos] = useState<string | null>(null);
+  const [editingDocument, setEditingDocument] = useState<DocumentoAPI | null>(null);
+  const [editDocumentForm, setEditDocumentForm] = useState<{ nombre: string; archivo: File | null }>({ nombre: '', archivo: null });
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [citas, setCitas] = useState<Cita[]>([]);
   const [proximaCita, setProximaCita] = useState<Cita | null>(null);
   const [loadingCitas, setLoadingCitas] = useState(false);
@@ -112,6 +121,7 @@ const PatientProfile = () => {
   
   // Estados para la obtención de datos de la API
   const [patientData, setPatientData] = useState<{
+    // Placeholder for future changes
     cliente: Cliente;
     historialMedico?: any;
   } | null>(null);
@@ -162,6 +172,47 @@ const PatientProfile = () => {
     
     fetchPatientProfile();
   }, [id, navigate]);
+
+  // Cargar documentos del paciente
+  useEffect(() => {
+    const fetchDocumentos = async () => {
+      if (!id) return;
+      try {
+        setLoadingDocumentos(true);
+        const docs = await documentoService.obtenerDocumentosCliente(id);
+        // Normalizar rutas: si la ruta es relativa (/uploads/...) la convertimos a URL absoluta usando la baseURL del api
+        const normalized = (docs || []).map(d => {
+          try {
+            // Si ya es una URL absoluta, dejarla
+            const isAbsolute = /^(https?:)?\/\//i.test(d.ruta);
+            if (isAbsolute) return d;
+
+            // Construir URL absoluta usando la base del cliente API
+            let base = api?.baseURL || '';
+            // Si la base incluye el prefijo '/api', lo removemos para apuntar al host raíz donde se sirven los uploads
+            base = base.replace(/\/api\/?$/, '');
+            const baseNoSlash = base.replace(/\/$/, '');
+            const ruta = d.ruta?.startsWith('/') ? `${baseNoSlash}${d.ruta}` : `${baseNoSlash}/${d.ruta}`;
+            return { ...d, ruta };
+          } catch (err) {
+            console.warn('No se pudo normalizar la ruta del documento', d, err);
+            return d;
+          }
+        });
+
+        setDocumentos(normalized);
+        setErrorDocumentos(null);
+      } catch (err) {
+        console.error('Error al cargar documentos:', err);
+        setDocumentos([]);
+        setErrorDocumentos('No se pudieron cargar los documentos');
+      } finally {
+        setLoadingDocumentos(false);
+      }
+    };
+
+    fetchDocumentos();
+  }, [id, openDocumentDialog]);
 
   // Cargar las citas del paciente
   useEffect(() => {
@@ -264,6 +315,71 @@ const PatientProfile = () => {
       ...prev,
       [field]: value
     }));
+  };
+
+  const handleDocumentDialogClose = () => {
+    setOpenDocumentDialog(false);
+    setDocumentForm({ nombre: '', tipo: 'xray', archivo: null });
+  };
+
+  const handleUploadDocument = async () => {
+    if (!id) return;
+    if (!documentForm.archivo) {
+      addNotification('Selecciona un archivo para subir', 'warning');
+      return;
+    }
+
+    try {
+      await documentoService.subirDocumento(id, documentForm.archivo, documentForm.tipo, documentForm.nombre || undefined);
+      addNotification('Documento subido correctamente', 'success');
+      // Refrescar lista de documentos
+      const docs = await documentoService.obtenerDocumentosCliente(id);
+      setDocumentos(docs || []);
+      handleDocumentDialogClose();
+    } catch (err) {
+      console.error('Error al subir documento:', err);
+      addNotification('Error al subir documento', 'error');
+    }
+  };
+
+  const handleOpenPreview = (url: string) => {
+    console.debug('Opening preview for URL:', url);
+    setPreviewUrl(url || null);
+    setPreviewOpen(true);
+  };
+
+  const handleOpenEditDocument = (doc: DocumentoAPI) => {
+    setEditingDocument(doc);
+    setEditDocumentForm({ nombre: doc.nombre || '', archivo: null });
+  };
+
+  const handleEditDocumentChange = (field: 'nombre' | 'archivo', value: string | File | null) => {
+    setEditDocumentForm(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleCloseEditDocument = () => {
+    setEditingDocument(null);
+    setEditDocumentForm({ nombre: '', archivo: null });
+  };
+
+  const handleSaveEditDocument = async () => {
+    if (!editingDocument) return;
+    try {
+      const updated = await documentoService.actualizarDocumento(editingDocument.id, editDocumentForm.archivo, editDocumentForm.nombre || undefined);
+      addNotification('Documento actualizado correctamente', 'success');
+      // Refrescar lista de documentos
+      const docs = await documentoService.obtenerDocumentosCliente(id || '');
+      setDocumentos(docs || []);
+      handleCloseEditDocument();
+    } catch (err) {
+      console.error('Error al actualizar documento:', err);
+      addNotification('Error al actualizar el documento', 'error');
+    }
+  };
+
+  const handleClosePreview = () => {
+    setPreviewOpen(false);
+    setPreviewUrl(null);
   };
 
   if (loading) {
@@ -534,11 +650,6 @@ const PatientProfile = () => {
             iconPosition="start"
           />
           <Tab 
-            icon={<MedicalIcon />} 
-            label="Historial Médico" 
-            iconPosition="start"
-          />
-          <Tab 
             icon={<PaymentIcon />} 
             label="Pagos" 
             iconPosition="start"
@@ -617,34 +728,55 @@ const PatientProfile = () => {
                   </Button>
                 </Box>
                 <Grid container spacing={2}>
-                  {/* Mapear documentos aquí */}
+                  {loadingDocumentos && (
+                    <Grid item xs={12}>
+                      <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                        <CircularProgress size={24} />
+                      </Box>
+                    </Grid>
+                  )}
+                  {errorDocumentos && (
+                    <Grid item xs={12}>
+                      <Alert severity="error">{errorDocumentos}</Alert>
+                    </Grid>
+                  )}
+                  {!loadingDocumentos && documentos.length === 0 && (
+                    <Grid item xs={12}>
+                      <Typography variant="body2" color="text.secondary">No hay documentos.</Typography>
+                    </Grid>
+                  )}
+                  {documentos.map(doc => (
+                    <Grid item key={doc.id} xs={12} sm={6} md={4}>
+                      <Card>
+                        <CardContent>
+                          <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <Box>
+                              <Typography variant="subtitle1">{doc.nombre}</Typography>
+                              <Typography variant="body2" color="text.secondary">{new Date(doc.fechaCreacion).toLocaleDateString()}</Typography>
+                            </Box>
+                            <Box>
+                              <IconButton onClick={() => handleOpenPreview(doc.ruta)}>
+                                <VisibilityIcon />
+                              </IconButton>
+                              <IconButton onClick={() => handleOpenEditDocument(doc)}>
+                                <EditIcon />
+                              </IconButton>
+                              <IconButton component="a" href={doc.ruta} target="_blank" rel="noopener">
+                                <DownloadIcon />
+                              </IconButton>
+                            </Box>
+                          </Box>
+                        </CardContent>
+                      </Card>
+                    </Grid>
+                  ))}
                 </Grid>
               </CardContent>
             </Card>
           </TabPanel>
+
 
           <TabPanel value={tabValue} index={3}>
-            {/* Contenido de Historial Médico */}
-            <Card elevation={0} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
-              <CardContent>
-                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                  <Typography variant="h6">Historial Médico Detallado</Typography>
-                  <Button
-                    variant="contained"
-                    startIcon={<EditIcon />}
-                    onClick={handleMedicalDialogOpen}
-                  >
-                    Actualizar Historial
-                  </Button>
-                </Box>
-                <Grid container spacing={3}>
-                  {/* Contenido del historial médico */}
-                </Grid>
-              </CardContent>
-            </Card>
-          </TabPanel>
-
-          <TabPanel value={tabValue} index={4}>
             {/* Contenido de Pagos */}
             <Card elevation={0} sx={{ bgcolor: alpha(theme.palette.primary.main, 0.02) }}>
               <CardContent>
@@ -674,7 +806,109 @@ const PatientProfile = () => {
       </Paper>
 
       {/* Diálogos existentes */}
-      {/* ... mantener los diálogos existentes ... */}
+          {/* Dialogo para subir documentos (radiografías, imágenes) */}
+          <Dialog open={openDocumentDialog} onClose={handleDocumentDialogClose} fullWidth maxWidth="sm">
+            <DialogTitle>Nuevo Documento</DialogTitle>
+            <DialogContent>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                <TextField
+                  label="Nombre"
+                  value={documentForm.nombre}
+                  onChange={(e) => handleDocumentFormChange('nombre', e.target.value)}
+                  fullWidth
+                />
+
+                <TextField
+                  select
+                  label="Tipo"
+                  value={documentForm.tipo}
+                  onChange={(e) => handleDocumentFormChange('tipo', e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="xray">Radiografía</MenuItem>
+                  <MenuItem value="document">Documento</MenuItem>
+                  <MenuItem value="other">Otro</MenuItem>
+                </TextField>
+
+                <Button variant="outlined" component="label">
+                  {documentForm.archivo ? 'Cambiar archivo' : 'Seleccionar archivo'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*,application/pdf"
+                    onChange={(e) => {
+                      const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                      handleDocumentFormChange('archivo', f);
+                    }}
+                  />
+                </Button>
+                {documentForm.archivo && (
+                  <Typography variant="body2">Seleccionado: {documentForm.archivo.name}</Typography>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleDocumentDialogClose}>Cancelar</Button>
+              <Button variant="contained" onClick={handleUploadDocument}>Subir</Button>
+            </DialogActions>
+          </Dialog>
+          {/* Dialog para editar documento */}
+          <Dialog open={!!editingDocument} onClose={handleCloseEditDocument} fullWidth maxWidth="sm">
+            <DialogTitle>Editar Documento</DialogTitle>
+            <DialogContent>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, mt: 1 }}>
+                <TextField
+                  label="Nombre"
+                  value={editDocumentForm.nombre}
+                  onChange={(e) => handleEditDocumentChange('nombre', e.target.value)}
+                  fullWidth
+                />
+
+                <Button variant="outlined" component="label">
+                  {editDocumentForm.archivo ? 'Cambiar archivo' : 'Seleccionar nuevo archivo'}
+                  <input
+                    type="file"
+                    hidden
+                    accept="image/*,application/pdf"
+                    onChange={(e) => {
+                      const f = e.target.files && e.target.files[0] ? e.target.files[0] : null;
+                      handleEditDocumentChange('archivo', f);
+                    }}
+                  />
+                </Button>
+                {editDocumentForm.archivo && (
+                  <Typography variant="body2">Seleccionado: {editDocumentForm.archivo.name}</Typography>
+                )}
+              </Box>
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleCloseEditDocument}>Cancelar</Button>
+              <Button variant="contained" onClick={handleSaveEditDocument}>Guardar</Button>
+            </DialogActions>
+          </Dialog>
+          {/* Dialog para previsualizar documentos */}
+          <Dialog open={previewOpen} onClose={handleClosePreview} fullWidth maxWidth="lg">
+            <DialogTitle>Previsualización</DialogTitle>
+            <DialogContent>
+              {previewUrl ? (
+                previewUrl.toLowerCase().endsWith('.pdf') ? (
+                  <iframe src={previewUrl} title="preview" style={{ width: '100%', height: '70vh', border: 'none' }} />
+                ) : (
+                  <Box sx={{ display: 'flex', justifyContent: 'center' }}>
+                    <img src={previewUrl} alt="preview" style={{ maxWidth: '100%', maxHeight: '70vh' }} />
+                  </Box>
+                )
+              ) : (
+                <Typography variant="body2" color="text.secondary">No hay vista previa disponible para este documento.</Typography>
+              )}
+            </DialogContent>
+            <DialogActions>
+              <Button onClick={handleClosePreview}>Cerrar</Button>
+              {previewUrl && (
+                <Button component="a" href={previewUrl} target="_blank" rel="noopener" variant="contained">Descargar</Button>
+              )}
+            </DialogActions>
+          </Dialog>
     </Box>
   );
 };

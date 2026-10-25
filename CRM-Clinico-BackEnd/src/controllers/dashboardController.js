@@ -136,6 +136,30 @@ exports.obtenerEstadisticasGenerales = async (req, res, next) => {
             // Mantener array vacío
         }
 
+        // Intentar obtener servicios más solicitados
+        try {
+            const serviciosMasSolicitados = await db.query(`
+                SELECT 
+                    s.nombre,
+                    COUNT(c.id) AS total
+                FROM citas c
+                INNER JOIN servicios s ON c.servicioId = s.id
+                GROUP BY s.id, s.nombre
+                ORDER BY total DESC
+                LIMIT 5
+            `, {
+                type: QueryTypes.SELECT
+            });
+
+            estadisticasBase.serviciosMasSolicitados = serviciosMasSolicitados.map(servicio => ({
+                nombre: servicio.nombre,
+                total: Number(servicio.total) || 0
+            }));
+        } catch (error) {
+            logger.error('Error al obtener servicios más solicitados:', error);
+            // Mantener array vacío
+        }
+
         // Intentar obtener nuevos pacientes por mes
         try {
             logger.info('Iniciando consulta de nuevos pacientes por mes');

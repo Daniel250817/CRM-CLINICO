@@ -156,9 +156,8 @@ exports.invalidarRefreshToken = async (userId) => {
  * @returns {String} - Token aleatorio
  */
 exports.generarTokenResetPassword = () => {
-  // Generar un número aleatorio y convertirlo a base 36 (incluye letras y números)
-  const resetToken = Math.random().toString(36).substring(2, 15) + 
-                     Math.random().toString(36).substring(2, 15);
-  
-  return resetToken;
+  // Generar un OTP numérico de 6 dígitos
+  const otp = crypto.randomInt(100000, 1000000).toString();
+
+  return otp;
 };

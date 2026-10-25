@@ -99,8 +99,9 @@ const tareaService = {
   // Obtener resumen de tareas (pendientes, completadas, vencidas)
   getResumenTareas: async (): Promise<ResumenTareas> => {
     try {
-      const response = await api.get<ResumenTareas>('/tareas/resumen');
-      return response.data;
+      const response = await api.get('/tareas/resumen');
+      // La API responde { status: 'success', data: { pendiente: ..., ... } }
+      return response.data.data as ResumenTareas;
     } catch (error) {
       console.error('Error al obtener resumen de tareas:', error);
       throw error;

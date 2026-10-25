@@ -29,9 +29,16 @@ apiClient.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+    const requestUrl = String(originalRequest?.url || '');
+    const isPublicAuthRoute =
+      requestUrl.includes('/auth/login') ||
+      requestUrl.includes('/auth/register') ||
+      requestUrl.includes('/auth/forgot-password') ||
+      requestUrl.includes('/auth/verify-reset-token') ||
+      requestUrl.includes('/auth/reset-password');
 
     // Si el error es 401 (Token expirado) y no hemos intentado hacer refresh
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    if (error.response?.status === 401 && !originalRequest?._retry && !isPublicAuthRoute) {
       const isTokenError = error.response.data?.message?.toLowerCase().includes('token') ||
                           error.response.data?.message?.toLowerCase().includes('expirado') ||
                           error.response.data?.message?.toLowerCase().includes('inválido');

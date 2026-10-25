@@ -1,5 +1,5 @@
 const db = require('../models');
-const { NotFoundError, ValidationError, BadRequestError } = require('../utils/errors');
+const { NotFoundError, ValidationError, BadRequestError, ForbiddenError } = require('../utils/errors');
 const logger = require('../utils/logger');
 const NotificacionService = require('../services/notificacionService');
 
@@ -239,12 +239,12 @@ class CitaController {
       if (req.usuario.rol === 'cliente') {
         const cliente = await db.Cliente.findOne({ where: { userId: req.usuario.id } });
         if (!cliente || cita.clienteId !== cliente.id) {
-          return next(new ForbiddenError('No tienes permiso para ver esta cita'));
+          return next(new ForbiddenError('No tienes permiso para modificar esta cita'));
         }
       } else if (req.usuario.rol === 'dentista') {
         const dentista = await db.Dentista.findOne({ where: { userId: req.usuario.id } });
         if (!dentista || cita.dentistaId !== dentista.id) {
-          return next(new ForbiddenError('No tienes permiso para ver esta cita'));
+          return next(new ForbiddenError('No tienes permiso para modificar esta cita'));
         }
       }
       
@@ -290,18 +290,8 @@ class CitaController {
         }
       }
       
-      // Validar transiciones de estado
-      const estadosValidos = {
-        'pendiente': ['confirmada', 'cancelada'],
-        'confirmada': ['completada', 'no asistió', 'cancelada'],
-        'completada': [],
-        'cancelada': [],
-        'no asistió': []
-      };
-      
-      if (!estadosValidos[cita.estado].includes(estado)) {
-        return next(new ValidationError(`No se puede cambiar el estado de ${cita.estado} a ${estado}`));
-      }
+      // Nota: permitimos cualquier cambio de estado que pase la validación del esquema (enum).
+      // La validación de transiciones estrictas fue removida para permitir ediciones desde cualquier estado.
       
       // Actualizar el estado
       cita.estado = estado;
@@ -462,6 +452,19 @@ class CitaController {
 
       if (!cita) {
         return next(new NotFoundError(`No existe una cita con ID: ${id}`));
+      }
+
+      // Verificar permisos según rol
+      if (req.usuario.rol === 'cliente') {
+        const cliente = await db.Cliente.findOne({ where: { userId: req.usuario.id } });
+        if (!cliente || cita.clienteId !== cliente.id) {
+          return next(new ForbiddenError('No tienes permiso para modificar esta cita'));
+        }
+      } else if (req.usuario.rol === 'dentista') {
+        const dentista = await db.Dentista.findOne({ where: { userId: req.usuario.id } });
+        if (!dentista || cita.dentistaId !== dentista.id) {
+          return next(new ForbiddenError('No tienes permiso para modificar esta cita'));
+        }
       }
 
       // Verificar disponibilidad del dentista (horario)

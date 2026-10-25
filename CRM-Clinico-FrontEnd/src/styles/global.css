@@ -43,6 +43,7 @@
   --fc-border-color: #374151;
   --fc-today-bg-color: rgba(59, 130, 246, 0.1);
   --fc-page-bg-color: #111827;
+  --fc-neutral-bg-color: #1F2937;
   color: #F9FAFB;
 }
 
@@ -64,6 +65,15 @@
   background-color: #374151;
 }
 
+/* Forzar color de texto en elementos de FullCalendar que puedan heredar color blanco
+   (por ejemplo dentro de componentes MUI Paper). Asegura contraste en modo oscuro. */
+[data-theme='dark'] .fc a.fc-col-header-cell-cushion,
+[data-theme='dark'] .fc .fc-col-header-cell-cushion,
+[data-theme='dark'] .fc .fc-daygrid-day-number {
+  color: #D1D5DB !important;
+  font-weight: 700;
+}
+
 /* Celdas del calendario */
 .fc td {
   border-color: var(--fc-border-color);
@@ -72,6 +82,22 @@
 /* Modo oscuro - celdas del calendario */
 [data-theme='dark'] .fc td {
   background-color: var(--fc-neutral-bg-color);
+}
+
+[data-theme='dark'] .fc .fc-scrollgrid,
+[data-theme='dark'] .fc .fc-scrollgrid-section,
+[data-theme='dark'] .fc .fc-scrollgrid-section > td,
+[data-theme='dark'] .fc .fc-scroller,
+[data-theme='dark'] .fc .fc-timegrid-body,
+[data-theme='dark'] .fc .fc-timegrid-slots,
+[data-theme='dark'] .fc .fc-timegrid-cols,
+[data-theme='dark'] .fc .fc-timegrid-axis,
+[data-theme='dark'] .fc .fc-timegrid-slot,
+[data-theme='dark'] .fc .fc-timegrid-slot-lane,
+[data-theme='dark'] .fc .fc-daygrid-day,
+[data-theme='dark'] .fc .fc-daygrid-body,
+[data-theme='dark'] .fc .fc-daygrid-body-natural {
+  background-color: #1F2937;
 }
 
 /* Eventos del calendario */

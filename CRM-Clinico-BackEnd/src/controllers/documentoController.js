@@ -9,7 +9,7 @@ class DocumentoController {
    */
   async obtenerDocumentosCliente(req, res, next) {
     try {
-      const { clienteId } = req.params;
+      const clienteId = req.params.clienteId || req.params.id;
       
       // Verificar que el cliente existe
       const cliente = await Cliente.findByPk(clienteId, {
@@ -50,7 +50,7 @@ class DocumentoController {
    */
   async subirDocumento(req, res, next) {
     try {
-      const { clienteId } = req.params;
+      const clienteId = req.params.clienteId || req.params.id;
       const { file } = req;
       
       if (!file) {
@@ -64,12 +64,14 @@ class DocumentoController {
       }
 
       // Crear el documento en la base de datos
+      const publicPath = `/uploads/documents/${file.filename}`;
+
       const documento = await Documento.create({
         clienteId: cliente.id,
         nombre: req.body.nombre || file.originalname,
         tipo: req.body.tipo || path.extname(file.originalname).substring(1),
         tamano: file.size,
-        ruta: file.path
+        ruta: publicPath
       });
 
       res.status(201).json({
@@ -119,6 +121,68 @@ class DocumentoController {
         next(error);
       } else {
         next(new AppError('Error al eliminar el documento', 500));
+      }
+    }
+  }
+
+  /**
+   * Actualizar un documento: cambiar nombre y/o reemplazar archivo
+   */
+  async actualizarDocumento(req, res, next) {
+    try {
+      const { documentoId } = req.params;
+
+      const documento = await Documento.findByPk(documentoId);
+      if (!documento) {
+        throw new AppError('Documento no encontrado', 404);
+      }
+
+      // Si se proporciona un nuevo archivo, actualizar ruta y tamano
+      if (req.file) {
+        // Eliminar archivo anterior si existe
+        try {
+          if (documento.ruta) {
+            const oldPath = path.join(__dirname, '../../', documento.ruta);
+            const fs = require('fs');
+            if (fs.existsSync(oldPath)) {
+              fs.unlinkSync(oldPath);
+            }
+          }
+        } catch (err) {
+          // No bloquear en caso de fallo al eliminar el archivo antiguo
+          logger.warn(`No se pudo eliminar el archivo antiguo: ${err.message}`);
+        }
+
+        const publicPath = `/uploads/documents/${req.file.filename}`;
+        documento.ruta = publicPath;
+        documento.tamano = req.file.size;
+      }
+
+      // Si se proporciona nombre en el body, actualizarlo
+      if (req.body && req.body.nombre) {
+        documento.nombre = req.body.nombre;
+      }
+
+      await documento.save();
+
+      res.status(200).json({
+        status: 'success',
+        data: {
+          id: documento.id,
+          clienteId: documento.clienteId,
+          nombre: documento.nombre,
+          tipo: documento.tipo,
+          fechaCreacion: documento.createdAt,
+          tamano: documento.tamano,
+          ruta: documento.ruta
+        }
+      });
+    } catch (error) {
+      logger.error(`Error al actualizar documento: ${error.message}`);
+      if (error instanceof AppError) {
+        next(error);
+      } else {
+        next(new AppError('Error al actualizar el documento', 500));
       }
     }
   }

@@ -54,7 +54,7 @@ const UserSettings = () => {
       setUserData({
         nombre: user.nombre || '',
         email: user.email || '',
-        telefono: user.telefono || ''
+        telefono: (user.telefono || '').replace(/\D/g, '').slice(0, 8)
       });
     }
   }, [user]);
@@ -62,9 +62,9 @@ const UserSettings = () => {
   const handleUserDataChange = (field: string) => (event: React.ChangeEvent<HTMLInputElement>) => {
     let value = event.target.value;
     
-    // Limpiar espacios para el teléfono
+    // Mantener el teléfono como una secuencia de hasta 8 dígitos
     if (field === 'telefono') {
-      value = value.replace(/\s/g, '');
+      value = value.replace(/\D/g, '').slice(0, 8);
     }
     
     setUserData(prev => ({
@@ -321,6 +321,11 @@ const UserSettings = () => {
                 error={!!errors.telefono}
                 helperText={errors.telefono}
                 placeholder="Ejemplo: 12345678"
+                inputProps={{
+                  inputMode: 'numeric',
+                  maxLength: 8,
+                  pattern: '[0-9]*',
+                }}
               />
               <TextField
                 fullWidth

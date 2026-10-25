@@ -21,6 +21,12 @@ import {
   CircularProgress,
   Alert,
   Chip,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
 } from '@mui/material';
 import {
   Add as AddIcon,
@@ -47,6 +53,9 @@ import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
 import listPlugin from '@fullcalendar/list';
 import esLocale from '@fullcalendar/core/locales/es';
+import enLocale from '@fullcalendar/core/locales/en-gb';
+import { useAuth } from '../../contexts/AuthContext';
+import { useTheme } from '@mui/material/styles';
 import dayjs from 'dayjs';
 import isBetween from 'dayjs/plugin/isBetween';
 import dentistaService from '../../services/dentistaService';
@@ -76,6 +85,7 @@ import { citaService, type Cita } from '../../services/citaService';
 import { clienteService, type Cliente } from '../../services/clienteService';
 import { useNotification } from '../../contexts/NotificationContext';
 import { servicioService, type Servicio } from '../../services/servicioService';
+import { exportDailyAppointmentReportToExcel } from '../../utils/citasReportExcel';
 
 dayjs.extend(isBetween);
 dayjs.extend(utc);
@@ -101,6 +111,7 @@ interface NewAppointmentFormData {
   dateTime: dayjs.Dayjs | null;
   duration: number;
   notes: string;
+  status?: 'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió';
 }
 
 interface NuevaCitaDTO {
@@ -115,6 +126,8 @@ interface NuevaCitaDTO {
 
 const AppointmentCalendar = () => {
   const { addNotification } = useNotification();
+  const { settings } = useAuth();
+  const theme = useTheme();
   const [view, setView] = useState<'dayGridMonth' | 'timeGridWeek' | 'timeGridDay'>('timeGridWeek');
   const [currentDate, setCurrentDate] = useState<Date>(new Date());
   const [openNewAppointment, setOpenNewAppointment] = useState(false);
@@ -137,6 +150,7 @@ const AppointmentCalendar = () => {
     dateTime: null,
     duration: 30,
     notes: '',
+    status: 'pendiente'
   });
   const [services, setServices] = useState<Servicio[]>([]);
   const [loadingServices, setLoadingServices] = useState(false);
@@ -144,6 +158,70 @@ const AppointmentCalendar = () => {
 
   // Referencia al calendario
   const calendarRef = useRef<FullCalendar>(null);
+
+  const formatStatusLabel = (status: string | undefined | null) => {
+    if (!status) return '';
+    const map: Record<string, string> = {
+      pendiente: 'Pendiente',
+      confirmada: 'Confirmada',
+      completada: 'Completada',
+      cancelada: 'Cancelada',
+      'no asistió': 'No Asistió'
+    };
+    return map[status] || status;
+  };
+
+  // Scroll the calendar to a specific event by id and highlight it briefly
+  const scrollToCalendarEvent = (eventId: string) => {
+    try {
+      const calendar = calendarRef.current;
+      const api = calendar?.getApi();
+      if (!api) return;
+
+      const ev = api.getEventById(eventId);
+      if (!ev) return;
+
+      // Switch to day view and go to the event date for precise positioning
+      api.changeView('timeGridDay');
+      setView('timeGridDay');
+      api.gotoDate(ev.start!);
+
+      // Wait a bit for the view to render, then find the DOM element and scroll
+      setTimeout(() => {
+        // Try common selectors FullCalendar uses
+        const selectors = [
+          `[data-event-id="${eventId}"]`,
+          `.fc-event[data-event-id="${eventId}"]`,
+          `#${eventId}`,
+          `.fc-event` // fallback
+        ];
+
+        let el: Element | null = null;
+        for (const sel of selectors) {
+          if (sel === '.fc-event') continue;
+          el = document.querySelector(sel);
+          if (el) break;
+        }
+
+        if (!el) {
+          // fallback: try matching by title text (less precise)
+          const all = Array.from(document.querySelectorAll('.fc-event'));
+          el = all.find(node => node.textContent && node.textContent.includes(ev.title)) || null;
+        }
+
+        if (el) {
+          // scroll into view within the calendar container
+          el.scrollIntoView({ behavior: 'smooth', block: 'center', inline: 'center' });
+
+          // add a temporary highlight
+          el.classList.add('fc-highlight-scroll');
+          setTimeout(() => el && el.classList.remove('fc-highlight-scroll'), 1800);
+        }
+      }, 300);
+    } catch (err) {
+      console.error('Error scrolling to calendar event:', err);
+    }
+  };
 
   // Añadir un estado para el diálogo de horarios
   const [horariosDentistaSeleccionado, setHorariosDentistaSeleccionado] = useState<HorariosDentistaSeleccionado | null>(null);
@@ -158,6 +236,10 @@ const AppointmentCalendar = () => {
   const [tempAppointmentData, setTempAppointmentData] = useState<any>(null);
   const [openFilters, setOpenFilters] = useState(false);
   const [selectedStatusFilters, setSelectedStatusFilters] = useState<Array<'pendiente' | 'confirmada' | 'completada' | 'cancelada' | 'no asistió'>>([]);
+  const [reportDate, setReportDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [dailyReportAppointments, setDailyReportAppointments] = useState<Cita[]>([]);
+  const [loadingDailyReport, setLoadingDailyReport] = useState(false);
+  const [errorDailyReport, setErrorDailyReport] = useState<string | null>(null);
 
   // Cargar pacientes
   useEffect(() => {
@@ -241,20 +323,34 @@ const AppointmentCalendar = () => {
         const response = await citaService.obtenerCitas();
         
         // Transformar las citas al formato que espera FullCalendar
-        const events = response.map(cita => ({
-          id: cita.id,
-          title: cita.servicio.nombre,
-          start: cita.fechaHora,
-          end: new Date(new Date(cita.fechaHora).getTime() + cita.duracion * 60000).toISOString(),
-          extendedProps: {
-            status: cita.estado,
-            patient: cita.cliente.usuario.nombre,
-            dentist: cita.dentista.usuario.nombre,
-            service: cita.servicio.nombre,
-            duration: cita.duracion
-          },
-          className: `event-${cita.estado}`
-        }));
+        const events = response.map(cita => {
+          // Preferir nombre compuesto del cliente: primero mirar `cliente.usuario`, luego `cliente.nombre`/`cliente.apellidos` si existen
+          let patientName = 'Paciente';
+          if (cita.cliente) {
+            if ((cita.cliente as any).usuario && ((cita.cliente as any).usuario.nombre || (cita.cliente as any).usuario.apellidos)) {
+              patientName = `${(cita.cliente as any).usuario.nombre || ''} ${(cita.cliente as any).usuario.apellidos || ''}`.trim();
+            } else if ((cita.cliente as any).nombre || (cita.cliente as any).apellidos) {
+              patientName = `${(cita.cliente as any).nombre || ''} ${(cita.cliente as any).apellidos || ''}`.trim();
+            }
+          }
+
+          const dentistName = cita.dentista?.usuario?.nombre || 'Dentista';
+
+          return {
+            id: cita.id,
+            title: cita.servicio.nombre,
+            start: cita.fechaHora,
+            end: new Date(new Date(cita.fechaHora).getTime() + cita.duracion * 60000).toISOString(),
+            extendedProps: {
+              status: cita.estado,
+              patient: patientName,
+              dentist: dentistName,
+              service: cita.servicio.nombre,
+              duration: cita.duracion
+            },
+            className: `event-${cita.estado}`
+          };
+        });
         
         setCalendarEvents(events);
         setErrorCitas(null);
@@ -320,6 +416,22 @@ const AppointmentCalendar = () => {
     ? calendarEvents.filter(event => selectedStatusFilters.includes(event.extendedProps.status))
     : calendarEvents;
 
+  const dailyReportSummary = [
+    {
+      estado: 'confirmada' as const,
+      etiqueta: 'Confirmadas',
+      cantidad: dailyReportAppointments.filter((cita) => cita.estado === 'confirmada').length
+    },
+    {
+      estado: 'cancelada' as const,
+      etiqueta: 'Canceladas',
+      cantidad: dailyReportAppointments.filter((cita) => cita.estado === 'cancelada').length
+    }
+  ];
+
+  const totalDailyReportAppointments = dailyReportSummary.reduce((accumulator, item) => accumulator + item.cantidad, 0);
+  const reportDateLabel = dayjs(reportDate).format('DD [de] MMMM [de] YYYY');
+
   // Gestionar el cambio de vista del calendario
   const handleViewChange = (newView: 'dayGridMonth' | 'timeGridWeek' | 'timeGridDay') => {
     const calendar = calendarRef.current;
@@ -348,78 +460,100 @@ const AppointmentCalendar = () => {
   // Evento cuando se hace clic en una cita existente
   const handleEventClick = (clickInfo: any) => {
     const event = clickInfo.event;
-    console.log('Evento clickeado:', event); // Para debugging
-    
-    if (event) {
-      setSelectedAppointmentId(event.id);
-      setSelectedAppointment({
-        id: event.id,
-        title: event.title,
-        start: event.startStr,
-        end: event.endStr,
-        patient: event.extendedProps.patient,
-        dentist: event.extendedProps.dentist,
-        service: event.extendedProps.service,
-        status: event.extendedProps.status,
-        notes: event.extendedProps.notes
-      });
-      setOpenAppointmentDetails(true);
-    }
+    if (!event) return;
+
+    setSelectedAppointmentId(event.id);
+
+    setSelectedAppointment({
+      id: event.id,
+      title: event.title,
+      start: event.startStr,
+      end: event.endStr,
+      patient: event.extendedProps.patient,
+      dentist: event.extendedProps.dentist,
+      service: event.extendedProps.service,
+      status: event.extendedProps.status,
+      notes: event.extendedProps.notes
+    });
+
+    setOpenAppointmentDetails(true);
   };
 
-  // Formato de eventos para el calendario
+  // Render para el contenido del evento (tarjeta rediseñada)
   const eventContent = (eventInfo: any) => {
     const { timeText, event } = eventInfo;
     const { extendedProps } = event;
-    
+
+    const status = extendedProps.status as string | undefined;
+    const statusMap: Record<string, { bg: string; color: string }>= {
+      pendiente: { bg: theme.palette.warning.light, color: theme.palette.warning.dark },
+      confirmada: { bg: theme.palette.success.light, color: theme.palette.success.dark },
+      completada: { bg: theme.palette.info.light, color: theme.palette.info.dark },
+      cancelada: { bg: theme.palette.error.light, color: theme.palette.error.dark },
+      'no asistió': { bg: theme.palette.grey[200], color: theme.palette.text.secondary }
+    };
+
+    const statusStyle = status ? (statusMap[status] || { bg: theme.palette.background.paper, color: theme.palette.text.primary }) : { bg: theme.palette.background.paper, color: theme.palette.text.primary };
+
+    // Use full border to indicate status (instead of filling background)
+    const borderColor = statusStyle.color || theme.palette.divider;
+
     return (
-      <Box className="appointment-card">
-        <Box className="appointment-header" sx={{ 
-          display: 'flex', 
-          alignItems: 'center', 
-          gap: 1,
-          mb: 0.5
-        }}>
-          <Box sx={{ 
-            display: 'flex', 
-            alignItems: 'center',
-            gap: 0.5,
-            flex: 1,
-            minWidth: 0 // Para permitir truncamiento
-          }}>
-            <AccessTimeIcon sx={{ fontSize: '0.875rem' }} />
-            <Typography noWrap sx={{ fontSize: '0.875rem' }}>
-              {timeText}
-            </Typography>
-            <Tooltip title={extendedProps.patient} arrow placement="top">
-              <Avatar sx={{ 
-                width: 24, 
-                height: 24, 
-                fontSize: '0.75rem',
-                bgcolor: 'primary.main',
-                ml: 1,
-                cursor: 'pointer'
-              }}>
-                {extendedProps.patient.charAt(0)}
-              </Avatar>
-            </Tooltip>
+      <Box sx={{
+        height: '100%',
+        p: 0.5,
+        borderRadius: 1.5,
+        bgcolor: 'transparent',
+        border: `2px solid ${borderColor}`,
+        color: 'text.primary',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: 0.25,
+        boxSizing: 'border-box',
+        overflow: 'hidden'
+      }}>
+        <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+          <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <AccessTimeIcon sx={{ fontSize: 16, color: 'text.secondary' }} />
+            <Typography noWrap sx={{ fontSize: 14, fontWeight: 600, color: 'text.primary' }}>{timeText}</Typography>
+          </Box>
+          <Tooltip title={extendedProps.patient} arrow placement="top">
+            <Avatar sx={{ width: 36, height: 36, bgcolor: 'primary.main', fontSize: 14 }}>{(extendedProps.patient || 'P').charAt(0)}</Avatar>
+          </Tooltip>
+        </Box>
+
+        <Box sx={{ flex: 1, overflow: 'hidden' }}>
+          <Typography sx={{ fontSize: 14, fontWeight: 700, lineHeight: 1.05, overflow: 'hidden', textOverflow: 'ellipsis' }}>{event.title}</Typography>
+          {extendedProps.service && (
+            <Typography sx={{ fontSize: 12, color: 'text.secondary' }}>{extendedProps.service}</Typography>
+          )}
+        </Box>
+
+        <Box sx={{ display: 'flex', justifyContent: 'flex-start', alignItems: 'center' }}>
+          <Box component="span" sx={{ px: 0.75, py: '4px', borderRadius: 1.25, bgcolor: 'rgba(0,0,0,0.04)', color: statusStyle.color, fontSize: 11, fontWeight: 600 }}>
+            {formatStatusLabel(status)}
           </Box>
         </Box>
-        
-        <Typography className="appointment-title" noWrap>
-          {event.title}
-        </Typography>
-
-        <Typography className="appointment-status" sx={{ 
-          fontSize: '0.75rem',
-          color: 'white',
-          mt: 0.5
-        }}>
-          {extendedProps.status}
-        </Typography>
       </Box>
     );
   };
+
+  // Inject small highlight CSS for scroll target
+  useEffect(() => {
+    const styleId = 'fc-highlight-scroll-style';
+    if (document.getElementById(styleId)) return;
+    const style = document.createElement('style');
+    style.id = styleId;
+    style.innerHTML = `
+      .fc-highlight-scroll { 
+        box-shadow: 0 0 0 6px rgba(30,96,250,0.12) !important; 
+        transform: scale(1.02); 
+        transition: box-shadow 200ms ease, transform 200ms ease; 
+      }
+    `;
+    document.head.appendChild(style);
+    return () => { style.remove(); };
+  }, []);
 
   // Función para ver la agenda de un dentista específico
   const handleViewDentistSchedule = async (dentistaId: string) => {
@@ -451,6 +585,45 @@ const AppointmentCalendar = () => {
       addNotification(`Error al obtener los horarios: ${errorMessage}`, 'error');
     }
   };
+
+  const handleExportDailyReport = async () => {
+    try {
+      await exportDailyAppointmentReportToExcel(dailyReportAppointments, reportDate);
+      addNotification('Reporte exportado exitosamente', 'success');
+    } catch (error) {
+      console.error('Error al exportar el reporte diario:', error);
+      addNotification('No se pudo exportar el reporte diario', 'error');
+    }
+  };
+
+  const cargarReporteDiario = async () => {
+    try {
+      setLoadingDailyReport(true);
+      const inicio = dayjs(reportDate).startOf('day');
+      const fin = dayjs(reportDate).endOf('day');
+
+      const citasDelDia = await citaService.obtenerCitas({
+        params: {
+          desde: inicio.toISOString(),
+          hasta: fin.toISOString()
+        }
+      });
+
+      setDailyReportAppointments(
+        citasDelDia.filter((cita) => cita.estado === 'confirmada' || cita.estado === 'cancelada')
+      );
+      setErrorDailyReport(null);
+    } catch (error) {
+      console.error('Error al cargar el reporte diario:', error);
+      setErrorDailyReport('No se pudo cargar el reporte diario');
+    } finally {
+      setLoadingDailyReport(false);
+    }
+  };
+
+  useEffect(() => {
+    cargarReporteDiario();
+  }, [reportDate]);
 
   // Guardar una nueva cita
   const handleSaveNewAppointment = async () => {
@@ -565,6 +738,7 @@ const AppointmentCalendar = () => {
         dateTime: null,
         duration: 30,
         notes: '',
+        status: 'pendiente'
       });
     } catch (error: any) {
       console.error('❌ Error al crear la cita:', error);
@@ -594,6 +768,8 @@ const AppointmentCalendar = () => {
           duration: services.find(s => s.id === Number(value))?.duracion || 30
         })
       }));
+
+      // Si se cambia el estado en el formulario, no hacemos nada extra aquí; se procesará en la actualización
     }
 
     // Si se selecciona un dentista, cargar los horarios inmediatamente
@@ -665,7 +841,7 @@ const AppointmentCalendar = () => {
       );
     }
 
-    return dentistas.map((dentista, index) => (
+      return dentistas.map((dentista, index) => (
       <Paper
         key={dentista.id}
         elevation={1}
@@ -682,12 +858,12 @@ const AppointmentCalendar = () => {
           mb: index < dentistas.length - 1 ? 1.5 : 0
         }}
       >
-        <Box 
-          sx={{ 
-            display: 'flex', 
+        <div
+          style={{
+            display: 'flex',
             alignItems: 'center',
-            gap: 2,
-            p: 2.5,
+            gap: 16,
+            padding: 20,
             cursor: 'pointer'
           }}
           onClick={() => handleViewDentistSchedule(dentista.id)}
@@ -703,14 +879,14 @@ const AppointmentCalendar = () => {
           >
             {dentista.usuario.nombre.charAt(0)}
           </Avatar>
-          <Box sx={{ flex: 1 }}>
+          <div style={{ flex: 1 }}>
             <Typography variant="subtitle1" fontWeight="600" color="text.primary">
               {dentista.usuario.nombre}
             </Typography>
             <Typography variant="body2" color="text.secondary" fontWeight="500">
               {dentista.especialidad || 'Médico dentista'}
             </Typography>
-          </Box>
+          </div>
           <IconButton
             size="small"
             sx={{ 
@@ -723,7 +899,7 @@ const AppointmentCalendar = () => {
           >
             <VisibilityIcon fontSize="small" />
           </IconButton>
-        </Box>
+        </div>
       </Paper>
     ));
   };
@@ -891,20 +1067,34 @@ const AppointmentCalendar = () => {
       const response = await citaService.obtenerCitas();
       
       // Transformar las citas al formato que espera FullCalendar
-      const events = response.map(cita => ({
-        id: cita.id,
-        title: cita.servicio.nombre,
-        start: cita.fechaHora,
-        end: new Date(new Date(cita.fechaHora).getTime() + cita.duracion * 60000).toISOString(),
-        extendedProps: {
-          status: cita.estado,
-          patient: cita.cliente.usuario.nombre,
-          dentist: cita.dentista.usuario.nombre,
-          service: cita.servicio.nombre,
-          duration: cita.duracion
-        },
-        className: `event-${cita.estado}`
-      }));
+      const events = response.map(cita => {
+        // Preferir nombre compuesto del cliente: primero mirar `cliente.usuario`, luego `cliente.nombre`/`cliente.apellidos` si existen
+        let patientName = 'Paciente';
+        if (cita.cliente) {
+          if ((cita.cliente as any).usuario && (((cita.cliente as any).usuario.nombre) || ((cita.cliente as any).usuario.apellidos))) {
+            patientName = `${(cita.cliente as any).usuario.nombre || ''} ${(cita.cliente as any).usuario.apellidos || ''}`.trim();
+          } else if ((cita.cliente as any).nombre || (cita.cliente as any).apellidos) {
+            patientName = `${(cita.cliente as any).nombre || ''} ${(cita.cliente as any).apellidos || ''}`.trim();
+          }
+        }
+
+        const dentistName = cita.dentista?.usuario?.nombre || 'Dentista';
+
+        return {
+          id: cita.id,
+          title: cita.servicio.nombre,
+          start: cita.fechaHora,
+          end: new Date(new Date(cita.fechaHora).getTime() + cita.duracion * 60000).toISOString(),
+          extendedProps: {
+            status: cita.estado,
+            patient: patientName,
+            dentist: dentistName,
+            service: cita.servicio.nombre,
+            duration: cita.duracion
+          },
+          className: `event-${cita.estado}`
+        };
+      });
       
       setCalendarEvents(events);
       return events;
@@ -1003,9 +1193,10 @@ const AppointmentCalendar = () => {
       try {
         citaCompleta = await citaService.obtenerCitaPorId(selectedAppointmentId || '');
         console.log('Detalles completos de la cita:', citaCompleta);
-      } catch (error) {
+      } catch (error: any) {
         console.error('Error al obtener detalles de la cita:', error);
-        addNotification('No se pudieron obtener los detalles completos de la cita', 'error');
+        const errorMessage = error?.message || 'No se pudieron obtener los detalles completos de la cita';
+        addNotification(errorMessage, 'error');
         return;
       }
       
@@ -1052,7 +1243,9 @@ const AppointmentCalendar = () => {
           dateTime: dayjs(selectedAppointment.start),
           duration: typeof selectedAppointment.end === 'string' && typeof selectedAppointment.start === 'string' ? 
             dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute') : 30,
-          notes: selectedAppointment.notes || ''
+            // Preferir la nota proveniente de la API completa (citaCompleta), si está disponible
+            notes: (citaCompleta && citaCompleta.notas) ? citaCompleta.notas : (selectedAppointment.notes || ''),
+            status: (citaCompleta && citaCompleta.estado) ? citaCompleta.estado : (selectedAppointment.status as any)
         };
         
         setTempAppointmentData(tempData);
@@ -1080,7 +1273,9 @@ const AppointmentCalendar = () => {
         duration: typeof selectedAppointment.end === 'string' && typeof selectedAppointment.start === 'string' ? 
           dayjs(selectedAppointment.end).diff(dayjs(selectedAppointment.start), 'minute') : 
           citaCompleta.duracion || 30,
-        notes: selectedAppointment.notes || ''
+        // Preferir la nota que devuelve el endpoint de la cita completa
+        notes: (citaCompleta && citaCompleta.notas) ? citaCompleta.notas : (selectedAppointment.notes || ''),
+        status: (citaCompleta && citaCompleta.estado) ? citaCompleta.estado : (selectedAppointment.status as any)
       };
 
       setNewAppointmentData(newData);
@@ -1182,8 +1377,20 @@ const AppointmentCalendar = () => {
         fechaHora: fechaUTC.toISOString(),
         duracion: Number(newAppointmentData.duration),
         notas: newAppointmentData.notes?.trim() || '',
+      // estado is handled separately via the estado endpoint
       };      const response = await citaService.actualizarCita(selectedAppointmentId, citaActualizada);
       console.log('Respuesta de actualización de cita:', response);
+
+      // Si el estado cambió, actualizarlo usando el endpoint específico
+      if (newAppointmentData.status && newAppointmentData.status !== selectedAppointment?.status) {
+        try {
+          await citaService.actualizarEstadoCita(selectedAppointmentId, newAppointmentData.status as string);
+          await cargarReporteDiario();
+        } catch (err) {
+          console.error('Error al actualizar estado de la cita:', err);
+          addNotification('Error al actualizar el estado de la cita', 'error');
+        }
+      }
       
       // Actualizar todos los eventos del calendario
       await actualizarEventosCalendario();
@@ -1229,6 +1436,8 @@ const AppointmentCalendar = () => {
       addNotification(mensajeError, 'error');
     }
   };
+
+  
 
   // Renderizar la app
   return (
@@ -1276,48 +1485,38 @@ const AppointmentCalendar = () => {
           >
             Siguiente
           </Button>
+          {/** Use the user's language from settings to localize labels and dates */}
           <Typography variant="h6" sx={{ ml: 2, fontWeight: 'medium' }}>
-            {currentDate.toLocaleString('es-ES', { month: 'long', year: 'numeric' })}
+            {(() => {
+              const lang = settings?.language || navigator.language || 'es-ES';
+              const localeCode = lang.startsWith('en') ? 'en-GB' : 'es-ES';
+              return currentDate.toLocaleString(localeCode, { month: 'long', year: 'numeric' });
+            })()}
           </Typography>
         </Box>
 
         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-          <Button
-            variant={view === 'dayGridMonth' ? 'contained' : 'outlined'}
-            onClick={() => handleViewChange('dayGridMonth')}
-            size="small"
-          >
-            Mes
-          </Button>
-          <Button
-            variant={view === 'timeGridWeek' ? 'contained' : 'outlined'}
-            onClick={() => handleViewChange('timeGridWeek')}
-            size="small"
-          >
-            Semana
-          </Button>
-          <Button
-            variant={view === 'timeGridDay' ? 'contained' : 'outlined'}
-            onClick={() => handleViewChange('timeGridDay')}
-            size="small"
-          >
-            Día
-          </Button>
-          <Button
-            variant="contained"
-            color="primary"
-            startIcon={<AddIcon />}
-            onClick={() => {
-              setOpenNewAppointment(true);
-            }}
-          >
-            Nueva Cita
-          </Button>
-          <Tooltip title="Filtrar">
-            <IconButton onClick={() => setOpenFilters(true)}>
-              <FilterListIcon />
-            </IconButton>
-          </Tooltip>
+          {(() => {
+            const lang = settings?.language || navigator.language || 'es';
+            const labels: any = {
+              es: { month: 'Mes', week: 'Semana', day: 'Día', newAppointment: 'Nueva Cita', filter: 'Filtrar' },
+              en: { month: 'Month', week: 'Week', day: 'Day', newAppointment: 'New Appointment', filter: 'Filter' }
+            };
+            const k = lang.startsWith('en') ? 'en' : 'es';
+            return (
+              <>
+                <Button variant={view === 'dayGridMonth' ? 'contained' : 'outlined'} onClick={() => handleViewChange('dayGridMonth')} size="small">{labels[k].month}</Button>
+                <Button variant={view === 'timeGridWeek' ? 'contained' : 'outlined'} onClick={() => handleViewChange('timeGridWeek')} size="small">{labels[k].week}</Button>
+                <Button variant={view === 'timeGridDay' ? 'contained' : 'outlined'} onClick={() => handleViewChange('timeGridDay')} size="small">{labels[k].day}</Button>
+                <Button variant="contained" color="primary" startIcon={<AddIcon />} onClick={() => { setOpenNewAppointment(true); }}>{labels[k].newAppointment}</Button>
+                <Tooltip title={labels[k].filter}>
+                  <IconButton onClick={() => setOpenFilters(true)}>
+                    <FilterListIcon />
+                  </IconButton>
+                </Tooltip>
+              </>
+            );
+          })()}
         </Box>
       </Paper>
 
@@ -1365,7 +1564,7 @@ const AppointmentCalendar = () => {
                 slotMinTime="08:00:00"
                 slotMaxTime="20:00:00"
                 expandRows={true}
-                locale={esLocale}
+                locale={(settings?.language || navigator.language || '').startsWith('en') ? enLocale : esLocale}
                 height="auto"
                 eventDrop={handleEventDrop}
                 eventResize={handleEventResize}
@@ -1383,6 +1582,136 @@ const AppointmentCalendar = () => {
           flexDirection: 'column',
           gap: 3
         }}>
+            <Card 
+              elevation={2}
+              sx={{ 
+                borderRadius: 3,
+                border: '1px solid',
+                borderColor: 'divider',
+                overflow: 'hidden'
+              }}
+            >
+              <CardHeader 
+                title="Reporte de Afluencia" 
+                titleTypographyProps={{ 
+                  variant: 'h6', 
+                  fontWeight: 600,
+                  color: '#1e60fa'
+                }}
+                sx={{ 
+                  bgcolor: '#1e60fa',
+                  color: 'white',
+                  py: 2,
+                  '& .MuiCardHeader-title': {
+                    color: 'white'
+                  }
+                }}
+                action={
+                  <Button
+                    size="small"
+                    variant="outlined"
+                    onClick={handleExportDailyReport}
+                    disabled={loadingDailyReport || dailyReportAppointments.length === 0}
+                    sx={{
+                      color: 'white',
+                      borderColor: 'rgba(255,255,255,0.7)',
+                      '&:hover': {
+                        borderColor: 'white',
+                        bgcolor: 'rgba(255,255,255,0.08)'
+                      }
+                    }}
+                  >
+                    Excel
+                  </Button>
+                }
+              />
+              <CardContent sx={{ p: 3, display: 'flex', flexDirection: 'column', gap: 2 }}>
+                <TextField
+                  label="Fecha del reporte"
+                  type="date"
+                  size="small"
+                  value={reportDate}
+                  onChange={(event) => setReportDate(event.target.value)}
+                  InputLabelProps={{ shrink: true }}
+                  fullWidth
+                />
+
+                <Typography variant="body2" color="text.secondary">
+                  Resumen del {reportDateLabel}
+                </Typography>
+
+                {loadingDailyReport ? (
+                  <Box sx={{ display: 'flex', justifyContent: 'center', p: 2 }}>
+                    <CircularProgress size={28} />
+                  </Box>
+                ) : errorDailyReport ? (
+                  <Alert severity="error" sx={{ borderRadius: 2 }}>
+                    {errorDailyReport}
+                  </Alert>
+                ) : (
+                  <>
+                    <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1.5 }}>
+                      <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center', borderColor: 'success.light' }}>
+                        <Typography variant="h5" fontWeight="bold" color="success.main">
+                          {dailyReportSummary[0].cantidad}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Confirmadas
+                        </Typography>
+                      </Card>
+                      <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center', borderColor: 'error.light' }}>
+                        <Typography variant="h5" fontWeight="bold" color="error.main">
+                          {dailyReportSummary[1].cantidad}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Canceladas
+                        </Typography>
+                      </Card>
+                      <Card variant="outlined" sx={{ p: 1.5, textAlign: 'center', borderColor: 'info.light' }}>
+                        <Typography variant="h5" fontWeight="bold" color="info.main">
+                          {totalDailyReportAppointments}
+                        </Typography>
+                        <Typography variant="caption" color="text.secondary">
+                          Total
+                        </Typography>
+                      </Card>
+                    </Box>
+
+                    <TableContainer component={Paper} variant="outlined" sx={{ borderRadius: 2 }}>
+                      <Table size="small">
+                        <TableHead>
+                          <TableRow>
+                            <TableCell sx={{ fontWeight: 700 }}>Estado</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700 }}>Cantidad</TableCell>
+                            <TableCell align="center" sx={{ fontWeight: 700 }}>Porcentaje</TableCell>
+                          </TableRow>
+                        </TableHead>
+                        <TableBody>
+                          {dailyReportSummary.map((item) => (
+                            <TableRow key={item.estado}>
+                              <TableCell>{item.etiqueta}</TableCell>
+                              <TableCell align="center">{item.cantidad}</TableCell>
+                              <TableCell align="center">
+                                {totalDailyReportAppointments > 0
+                                  ? `${((item.cantidad / totalDailyReportAppointments) * 100).toFixed(1)}%`
+                                  : '0%'}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </TableContainer>
+
+                    {dailyReportAppointments.length === 0 && (
+                      <Alert severity="info" sx={{ borderRadius: 2 }}>
+                        No hay citas confirmadas o canceladas para esta fecha.
+                      </Alert>
+                    )}
+                  </>
+                )}
+              </CardContent>
+            </Card>
+
           {/* Dentistas disponibles */}
           <Card 
             elevation={2}
@@ -1471,14 +1800,15 @@ const AppointmentCalendar = () => {
                 }
               }}
             />
-            <Box sx={{ 
+            <CardContent sx={{ 
               p: 3,
-              maxHeight: '400px',
-              overflowY: 'auto',
-              display: 'flex',
-              flexDirection: 'column',
-              gap: 2,
-              bgcolor: 'background.paper',
+               maxHeight: '400px',
+               overflowY: 'auto',
+               display: 'flex',
+               flexDirection: 'column',
+               gap: 2,
+               alignItems: 'center',
+               bgcolor: 'background.paper',
               '&::-webkit-scrollbar': {
                 width: '6px',
               },
@@ -1545,27 +1875,35 @@ const AppointmentCalendar = () => {
                 </Box>
               ) : (
                 proximasCitas.map((cita) => (
-                  <Paper
-                    key={cita.id}
-                    elevation={1}
-                    sx={{
-                      p: 2.5,
-                      borderRadius: 2,
-                      border: '1px solid',
-                      borderColor: 'divider',
-                      transition: 'all 0.2s ease-in-out',
-                      '&:hover': {
-                        elevation: 3,
-                        borderColor: 'primary.light',
-                        bgcolor: 'action.hover'
-                      }
-                    }}
-                  >
-                    <Stack spacing={1.5}>
+                      <Paper
+                          key={cita.id}
+                          elevation={1}
+                          sx={{
+                            width: '100%',
+                            maxWidth: 420,
+                            mx: 'auto',
+                            p: 2.5,
+                            cursor: 'pointer',
+                            borderRadius: 2,
+                            border: '1px solid',
+                            borderColor: 'divider',
+                            transition: 'all 0.2s ease-in-out',
+                            display: 'flex',
+                            alignItems: 'center',
+                            '&:hover': {
+                              elevation: 3,
+                              borderColor: 'primary.light',
+                              bgcolor: 'action.hover'
+                            }
+                          }}
+                        onClick={() => scrollToCalendarEvent(cita.id)}>
+                          <Stack spacing={1.5} sx={{ width: '100%', alignItems: 'center' }}>
                       <Box sx={{ 
                         display: 'flex', 
                         alignItems: 'center', 
-                        justifyContent: 'space-between'
+                        justifyContent: 'center',
+                        gap: 2,
+                        width: '100%'
                       }}>
                         <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                           <AccessTimeIcon 
@@ -1579,9 +1917,7 @@ const AppointmentCalendar = () => {
                         </Box>
                         <Chip 
                           size="small"
-                          label={cita.estado === 'pendiente' ? 'Pendiente' : 
-                                 cita.estado === 'confirmada' ? 'Confirmada' : 
-                                 cita.estado === 'completada' ? 'Completada' : 'Cancelada'}
+                             label={formatStatusLabel(cita.estado)}
                           color={cita.estado === 'pendiente' ? 'warning' : 
                                  cita.estado === 'confirmada' ? 'success' : 
                                  cita.estado === 'completada' ? 'info' : 'error'}
@@ -1590,11 +1926,11 @@ const AppointmentCalendar = () => {
                         />
                       </Box>
                       
-                      <Typography variant="h6" fontWeight="600" color="text.primary">
+                      <Typography variant="h6" fontWeight="600" color="text.primary" sx={{ textAlign: 'center' }}>
                         {cita.servicio.nombre}
                       </Typography>
                       
-                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, justifyContent: 'center', width: '100%' }}>
                         <PersonIcon 
                           fontSize="small" 
                           color="action"
@@ -1608,7 +1944,7 @@ const AppointmentCalendar = () => {
                   </Paper>
                 ))
               )}
-            </Box>
+            </CardContent>
           </Card>
         </Box>
       </Box>
@@ -2072,6 +2408,19 @@ const AppointmentCalendar = () => {
                 }}
                 timezone="system"
               />
+                <TextField
+                  select
+                  label="Estado"
+                  value={newAppointmentData.status}
+                  onChange={(e) => handleNewAppointmentChange('status', e.target.value)}
+                  fullWidth
+                >
+                  <MenuItem value="pendiente">Pendiente</MenuItem>
+                  <MenuItem value="confirmada">Confirmada</MenuItem>
+                  <MenuItem value="completada">Completada</MenuItem>
+                  <MenuItem value="cancelada">Cancelada</MenuItem>
+                  <MenuItem value="no asistió">No asistió</MenuItem>
+                </TextField>
               {renderPatientSelector()}
               {renderServiceSelector()}
               <TextField

@@ -75,9 +75,10 @@ const citaService = {
     try {
       const response = await api.get<ApiResponse<Cita>>(`/citas/${id}`);
       return response.data.data;
-    } catch (error) {
+    } catch (error: any) {
       console.error('Error al obtener cita:', error);
-      throw new Error('Error al obtener la cita');
+      const backendMessage = error?.response?.data?.message;
+      throw new Error(backendMessage || 'Error al obtener la cita');
     }
   },
 
@@ -125,7 +126,13 @@ const citaService = {
       return response.data.data;
     } catch (error) {
       console.error('Error al actualizar estado de cita:', error);
-      throw new Error('Error al actualizar el estado de la cita');
+      // Si el servidor devuelve detalles de validación, mostrarlos para debugging
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const anyErr: any = error;
+      if (anyErr.response && anyErr.response.data) {
+        console.error('Detalles de la respuesta del servidor:', anyErr.response.data);
+      }
+      throw new Error(anyErr.response?.data?.message || 'Error al actualizar el estado de la cita');
     }
   },
   

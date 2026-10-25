@@ -207,7 +207,7 @@ class UsuarioController {
         return next(new ForbiddenError('No puedes cambiar el estado de tu propia cuenta'));
       }
       
-      usuario.activo = activo;
+      usuario.estado = activo ? 'activo' : 'inactivo';
       await usuario.save();
       
       res.status(200).json({
@@ -216,7 +216,7 @@ class UsuarioController {
         data: {
           id: usuario.id,
           nombre: usuario.nombre,
-          activo: usuario.activo
+          estado: usuario.estado
         }
       });
     } catch (error) {

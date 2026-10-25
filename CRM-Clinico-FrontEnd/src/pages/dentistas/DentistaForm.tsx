@@ -16,8 +16,17 @@ import {
   Alert,
   Divider,
   Avatar,
+  IconButton,
   Chip,
   Autocomplete,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Stack,
+  Switch,
   FormControlLabel,
   Radio,
   RadioGroup,
@@ -25,15 +34,20 @@ import {
 } from '@mui/material';
 import {
   Save as SaveIcon,
-  ArrowBack as ArrowBackIcon
+  ArrowBack as ArrowBackIcon,
+  PhotoCamera as PhotoCameraIcon,
+  Delete as DeleteIcon,
+  Add as AddIcon
 } from '@mui/icons-material';
 import dentistaService from '../../services/dentistaService';
+import type { Dentista, DentistaCreacionDatos } from '../../services/dentistaService';
 import { usuarioService } from '../../services/usuarioService';
 import type { Usuario } from '../../services/usuarioService';
 import { TimePicker } from '@mui/x-date-pickers/TimePicker';
 import { LocalizationProvider } from '@mui/x-date-pickers/LocalizationProvider';
 import { AdapterDayjs } from '@mui/x-date-pickers/AdapterDayjs';
 import dayjs from 'dayjs';
+import config from '../../config';
 import authService, { AuthError } from '../../services/authService';
 
 interface DentistaFormFields {
@@ -74,6 +88,18 @@ interface HorarioItem {
   inicio: string;
   fin: string;
   dias: number[];
+}
+
+interface HorarioBD {
+  [key: string]: Array<{ inicio: string; fin: string }>;
+}
+
+interface UserResponse {
+  status?: string;
+  data: {
+    usuario?: Usuario;
+    usuarios?: Usuario[];
+  };
 }
 
 interface ApiError {
@@ -220,8 +246,7 @@ const DentistaForm = () => {
     { inicio: '09:00', fin: '14:00', dias: [1, 2, 3, 4, 5] }
   ]);
   const [isCreatingNewUser, setIsCreatingNewUser] = useState(false);
-  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [nuevoUsuario, setNuevoUsuario] = useState<NuevoUsuarioFields>({
+  const timeoutRef = useRef<NodeJS.Timeout | null>(null);  const [nuevoUsuario, setNuevoUsuario] = useState<NuevoUsuarioFields>({
     nombre: '',
     email: '',
     telefono: '',
@@ -650,6 +675,19 @@ const DentistaForm = () => {
       nuevosHorarios[horarioIndex].dias = [...diasActuales, diaId].sort();
     }
     
+    setHorarios(nuevosHorarios);
+    setFormData({
+      ...formData,
+      horarioTrabajo: JSON.stringify(nuevosHorarios, null, 2)
+    });
+  };
+
+  const agregarHorario = () => {
+    setHorarios([...horarios, { inicio: '09:00', fin: '18:00', dias: [] }]);
+  };
+
+  const eliminarHorario = (index: number) => {
+    const nuevosHorarios = horarios.filter((_, i) => i !== index);
     setHorarios(nuevosHorarios);
     setFormData({
       ...formData,

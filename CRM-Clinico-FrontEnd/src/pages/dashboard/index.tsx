@@ -338,6 +338,13 @@ const Dashboard = () => {
       }
     }
   };
+
+  const serviciosMasSolicitados = stats?.serviciosMasSolicitados ?? [];
+  const totalServiciosSolicitados = serviciosMasSolicitados.reduce(
+    (total, servicio) => total + (servicio.total ?? 0),
+    0
+  );
+  const servicioMasSolicitado = serviciosMasSolicitados[0];
   
   // Renderizar citas
   const renderCitas = () => {
@@ -459,21 +466,7 @@ const Dashboard = () => {
           </CardContent>
         </Card>
 
-        <Card>
-          <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
-            <Avatar sx={{ bgcolor: 'success.main', width: 48, height: 48 }}>
-              <AttachMoneyIcon />
-            </Avatar>
-            <Box>
-              <Typography color="text.secondary" variant="body2">
-                Ingresos Totales
-              </Typography>
-              <Typography variant="h4" fontWeight="bold">
-                ${stats.resumen.ingresosTotales.toLocaleString()}
-              </Typography>
-            </Box>
-          </CardContent>
-        </Card>
+        {/* Ingresos Totales eliminado según petición - se preservan los demás cards */}
 
         <Card>
           <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
@@ -493,6 +486,22 @@ const Dashboard = () => {
 
         <Card>
           <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
+            <Avatar sx={{ bgcolor: 'success.main', width: 48, height: 48 }}>
+              <CheckCircleOutlineIcon />
+            </Avatar>
+            <Box>
+              <Typography color="text.secondary" variant="body2">
+                Tareas Completadas
+              </Typography>
+              <Typography variant="h4" fontWeight="bold">
+                {tasksResumen?.completada ?? 0}
+              </Typography>
+            </Box>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardContent sx={{ display: 'flex', alignItems: 'center', gap: 2, p: 2 }}>
             <Avatar sx={{ bgcolor: 'warning.main', width: 48, height: 48 }}>
               <AssignmentIcon />
             </Avatar>
@@ -501,7 +510,7 @@ const Dashboard = () => {
                 Tareas Pendientes
               </Typography>
               <Typography variant="h4" fontWeight="bold">
-                {tasksResumen.pendiente}
+                {tasksResumen?.pendiente ?? 0}
               </Typography>
             </Box>
           </CardContent>
@@ -870,7 +879,7 @@ const Dashboard = () => {
                 color="success"
                 sx={{ height: 8, borderRadius: 4, mb: 2 }}
               />
-              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 2 }}>
+              <Box sx={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: 2 }}>
                 <Box>
                   <Typography variant="h5" fontWeight="bold" align="center">
                     {stats?.resumen?.totalCitas ?? 0}
@@ -889,18 +898,85 @@ const Dashboard = () => {
                     Nuevos Usuarios
                   </Typography>
                 </Box>
-                <Box>
-                  <Typography variant="h5" fontWeight="bold" align="center">
-                    ${((stats?.resumen?.ingresosTotales ?? 0) / 1000).toFixed(1)}K
-                  </Typography>
-                  <Typography variant="body2" color="text.secondary" align="center">
-                    Ingresos
-                  </Typography>
-                </Box>
+                {/* Apartado 'Ingresos' eliminado según petición */}
               </Box>
             </CardContent>
           </Card>
         </Box>
+      </Box>
+
+      <Box sx={{ mt: 3 }}>
+        <Card>
+          <CardHeader
+            title="Servicios más solicitados"
+            subheader="Resumen del uso de servicios en el dashboard"
+          />
+          <Divider />
+          <CardContent>
+            {serviciosMasSolicitados.length > 0 ? (
+              <>
+                <Box
+                  sx={{
+                    display: 'grid',
+                    gridTemplateColumns: { xs: '1fr', md: 'repeat(3, 1fr)' },
+                    gap: 2,
+                    mb: 3
+                  }}
+                >
+                  <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Total de solicitudes
+                    </Typography>
+                    <Typography variant="h4" fontWeight="bold">
+                      {totalServiciosSolicitados}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Servicio más solicitado
+                    </Typography>
+                    <Typography variant="h6" fontWeight="bold" noWrap>
+                      {servicioMasSolicitado?.nombre || 'Sin datos'}
+                    </Typography>
+                  </Box>
+                  <Box sx={{ p: 2, borderRadius: 2, bgcolor: 'background.default' }}>
+                    <Typography variant="body2" color="text.secondary">
+                      Solicitudes del líder
+                    </Typography>
+                    <Typography variant="h4" fontWeight="bold">
+                      {servicioMasSolicitado?.total ?? 0}
+                    </Typography>
+                  </Box>
+                </Box>
+
+                <TableContainer>
+                  <Table size="small">
+                    <TableHead>
+                      <TableRow>
+                        <TableCell>Servicio</TableCell>
+                        <TableCell align="right">Solicitudes</TableCell>
+                      </TableRow>
+                    </TableHead>
+                    <TableBody>
+                      {serviciosMasSolicitados.map((servicio, index) => (
+                        <TableRow key={`${servicio.nombre}-${index}`}>
+                          <TableCell>{servicio.nombre}</TableCell>
+                          <TableCell align="right">{servicio.total}</TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </TableContainer>
+              </>
+            ) : (
+              <Box sx={{ py: 4, textAlign: 'center' }}>
+                <Typography variant="body2" color="text.secondary">
+                  No hay información suficiente para mostrar los servicios más solicitados
+                </Typography>
+              </Box>
+            )}
+          </CardContent>
+        </Card>
       </Box>
     </Box>
   );

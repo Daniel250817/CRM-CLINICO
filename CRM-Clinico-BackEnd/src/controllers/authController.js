@@ -1,8 +1,9 @@
-const { UnauthorizedError, NotFoundError } = require('../utils/errors');
+const { UnauthorizedError, ForbiddenError, NotFoundError } = require('../utils/errors');
 const { generarJWT, generarTokenResetPassword, generarRefreshToken, refrescarToken, invalidarRefreshToken } = require('../utils/jwt');
 const db = require('../models');
 const logger = require('../utils/logger');
 const { authSchemas } = require('../utils/validaciones');
+const { enviarCorreoRecuperacionPassword } = require('../utils/mailer');
 
 class AuthController {
   /**
@@ -90,18 +91,34 @@ class AuthController {
       if (!passwordCorrecta) {
         logger.warn(`Intento de login fallido: contraseña incorrecta - ${email}`);
         return next(new UnauthorizedError('Las credenciales proporcionadas son incorrectas'));
-      }      // 3) Actualizar último login
+      }
+
+      // 3) Validar estado de dentista cuando exista perfil asociado
+      // Nota: algunos usuarios pueden tener perfil de dentista aunque su rol no sea "dentista".
+      let dentista = await db.Dentista.findOne({ where: { userId: usuario.id } });
+
+      if (usuario.rol === 'dentista' && !dentista) {
+        logger.warn(`Intento de login bloqueado: dentista sin perfil asociado - ${email}`);
+        return next(new UnauthorizedError('No se encontró el perfil de dentista asociado'));
+      }
+
+      if (dentista && dentista.status !== 'activo') {
+        logger.warn(`Intento de login bloqueado: dentista inactivo (${dentista.status}) - ${email}`);
+        return next(new ForbiddenError('Usuario inactivo. Por favor contacta al administrador.'));
+      }
+
+      // 4) Actualizar último login
       usuario.ultimoLogin = new Date();
       await usuario.save();
 
-      // 4) Generar JWT y refresh token
+      // 5) Generar JWT y refresh token
       const token = await generarJWT(usuario.id);
       const refreshToken = await generarRefreshToken(usuario.id);
       
-      // 5) Guardar refresh token en la base de datos
+      // 6) Guardar refresh token en la base de datos
       await usuario.update({ refreshToken });
 
-      // 6) Respuesta
+      // 7) Respuesta
       res.status(200).json({
         status: 'success',
         token,
@@ -110,7 +127,8 @@ class AuthController {
           id: usuario.id,
           nombre: usuario.nombre,
           email: usuario.email,
-          rol: usuario.rol
+          rol: usuario.rol,
+          ...(usuario.rol === 'dentista' ? { estado: dentista.status } : {})
         }
       });
     } catch (error) {
@@ -134,20 +152,52 @@ class AuthController {
       // Generar token de reset y establecer expiración
       const resetToken = generarTokenResetPassword();
       usuario.resetPasswordToken = resetToken;
-      usuario.resetPasswordExpires = new Date(Date.now() + 3600000); // 1 hora
+      usuario.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000); // 10 minutos
       await usuario.save();
 
-      // En una implementación real, aquí enviaríamos un email con el token
-      // Para fines de desarrollo, se devuelve el token en la respuesta
-      logger.info(`Token de restablecimiento para ${email}: ${resetToken}`);
+      const resultadoEnvio = await enviarCorreoRecuperacionPassword({
+        email: usuario.email,
+        nombre: usuario.nombre,
+        otp: resetToken
+      });
+
+      logger.info(`OTP de restablecimiento para ${email}: ${resetToken}`);
 
       res.status(200).json({
         status: 'success',
-        message: 'Token de restablecimiento enviado al correo (simulado)',
-        devToken: process.env.NODE_ENV === 'development' ? resetToken : undefined
+        message: 'Correo de recuperación enviado correctamente',
+        sent: resultadoEnvio.sent === true
       });
     } catch (error) {
       logger.error(`Error en olvidoPassword: ${error}`);
+      next(error);
+    }
+  }
+
+  /**
+   * Verificar OTP de restablecimiento
+   */
+  static async verificarTokenRestablecimiento(req, res, next) {
+    try {
+      const { token } = req.body;
+
+      const usuario = await db.Usuario.findOne({
+        where: {
+          resetPasswordToken: token,
+          resetPasswordExpires: { [db.Sequelize.Op.gt]: Date.now() }
+        }
+      });
+
+      if (!usuario) {
+        return next(new UnauthorizedError('Token inválido o expirado'));
+      }
+
+      res.status(200).json({
+        status: 'success',
+        message: 'Token válido'
+      });
+    } catch (error) {
+      logger.error(`Error en verificarTokenRestablecimiento: ${error}`);
       next(error);
     }
   }
@@ -204,7 +254,6 @@ class AuthController {
         email: req.usuario.email,
         rol: req.usuario.rol,
         telefono: req.usuario.telefono,
-        estado: req.usuario.activo ? 'activo' : 'inactivo',
         ultimo_acceso: req.usuario.ultimoLogin,
         createdAt: req.usuario.createdAt,
         updatedAt: req.usuario.updatedAt
@@ -240,7 +289,7 @@ class AuthController {
         } else if (req.usuario.rol === 'dentista') {
           const dentista = await db.Dentista.findOne({ where: { userId: req.usuario.id } });
           if (dentista) {
-            userData = { ...userData, dentista };
+            userData = { ...userData, estado: dentista.status, dentista };
           }
         }
       } catch (error) {

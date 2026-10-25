@@ -15,6 +15,8 @@ import MainLayout from './components/layout/MainLayout';
 
 // Auth Pages
 import Login from './pages/auth/Login';
+import ForgotPassword from './pages/auth/ForgotPassword';
+import ResetPassword from './pages/auth/ResetPassword';
 
 // App Pages
 import Dashboard from './pages/dashboard/index';
@@ -56,7 +58,15 @@ const ProtectedRoute = () => {
 };
 
 function AppRoutes() {
-  const { isAuthenticated, loading, logout } = useAuth();
+  const { isAuthenticated, loading, logout, user } = useAuth();
+
+  const defaultRouteForUser = () => {
+    if (!user) return '/dashboard';
+    // If the user is a patient/cliente, send them to appointments
+    if (user.rol === 'cliente') return '/appointments/calendar';
+    // otherwise default to dashboard
+    return '/dashboard';
+  };
 
   if (loading) {
     // Mostrar indicador de carga mientras se verifica la autenticación
@@ -77,9 +87,11 @@ function AppRoutes() {
       <Route 
         path="/login" 
         element={
-          isAuthenticated ? <Navigate to="/dashboard" replace /> : <Login />
+          isAuthenticated ? <Navigate to={defaultRouteForUser()} replace /> : <Login />
         } 
       />
+      <Route path="/forgot-password" element={<ForgotPassword />} />
+      <Route path="/reset-password" element={<ResetPassword />} />
       
       {/* Protected Routes */}
       <Route element={<ProtectedRoute />}>
@@ -266,8 +278,8 @@ function AppRoutes() {
         </Route>
       </Route>
       
-      <Route path="/" element={<Navigate to="/dashboard" replace />} />
-      <Route path="*" element={<Navigate to="/dashboard" replace />} />
+      <Route path="/" element={<Navigate to={defaultRouteForUser()} replace />} />
+      <Route path="*" element={<Navigate to={defaultRouteForUser()} replace />} />
     </Routes>
   );
 }

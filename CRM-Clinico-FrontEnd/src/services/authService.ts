@@ -60,6 +60,28 @@ export interface RegisterData {
   rol?: 'admin' | 'dentista' | 'asistente' | 'cliente';
 }
 
+export interface ForgotPasswordResponse {
+  status: string;
+  message: string;
+  devToken?: string;
+}
+
+export interface VerifyPasswordResetResponse {
+  status: string;
+  message: string;
+}
+
+export interface ResetPasswordData {
+  password: string;
+  passwordConfirm: string;
+}
+
+export interface ResetPasswordResponse {
+  status: string;
+  token: string;
+  message: string;
+}
+
 export class AuthError extends Error {
   public code?: string;
   public statusCode?: number;
@@ -132,6 +154,17 @@ const authService = {
         );
       }
       
+      const backendMessage = error.response?.data?.message as string | undefined;
+
+      // Si backend marca inactivo con 401, no mostrar mensaje de credenciales
+      if (error.response?.status === 401 && backendMessage?.toLowerCase().includes('inactivo')) {
+        throw new AuthError(
+          backendMessage,
+          'ACCOUNT_INACTIVE',
+          401
+        );
+      }
+
       // Manejar error de credenciales inválidas
       if (error.response?.status === 401) {
         throw new AuthError(
@@ -144,7 +177,7 @@ const authService = {
       // Manejar error de usuario inactivo o bloqueado
       if (error.response?.status === 403) {
         throw new AuthError(
-          'Tu cuenta está inactiva o bloqueada. Por favor contacta al administrador.',
+          backendMessage || 'Tu cuenta está inactiva o bloqueada. Por favor contacta al administrador.',
           'ACCOUNT_INACTIVE',
           403
         );
@@ -349,7 +382,7 @@ const authService = {
   },
 
   // Actualizar avatar del usuario
-  updateAvatar: async (userId: number, avatarFile: File): Promise<User> => {
+  updateAvatar: async (_userId: number, avatarFile: File): Promise<User> => {
     try {
       const formData = new FormData();
       formData.append('avatar', avatarFile);
@@ -402,6 +435,48 @@ const authService = {
       }
       // Re-throw other errors
       throw error;
+    }
+  },
+
+  // Solicitar recuperación de contraseña
+  requestPasswordReset: async (email: string): Promise<ForgotPasswordResponse> => {
+    try {
+      const response = await api.post<ForgotPasswordResponse>('/auth/forgot-password', { email });
+      return response.data;
+    } catch (error: any) {
+      throw new AuthError(
+        error.response?.data?.message || 'No se pudo solicitar la recuperación de contraseña',
+        'FORGOT_PASSWORD_ERROR',
+        error.response?.status
+      );
+    }
+  },
+
+  // Verificar el OTP enviado por correo
+  verifyPasswordResetToken: async (token: string): Promise<VerifyPasswordResetResponse> => {
+    try {
+      const response = await api.post<VerifyPasswordResetResponse>('/auth/verify-reset-token', { token });
+      return response.data;
+    } catch (error: any) {
+      throw new AuthError(
+        error.response?.data?.message || 'No se pudo verificar el código de recuperación',
+        'VERIFY_RESET_TOKEN_ERROR',
+        error.response?.status
+      );
+    }
+  },
+
+  // Restablecer contraseña usando token
+  resetPassword: async (token: string, data: ResetPasswordData): Promise<ResetPasswordResponse> => {
+    try {
+      const response = await api.post<ResetPasswordResponse>(`/auth/reset-password/${encodeURIComponent(token)}`, data);
+      return response.data;
+    } catch (error: any) {
+      throw new AuthError(
+        error.response?.data?.message || 'No se pudo restablecer la contraseña',
+        'RESET_PASSWORD_ERROR',
+        error.response?.status
+      );
     }
   },
 };
